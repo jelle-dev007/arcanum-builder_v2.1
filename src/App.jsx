@@ -237,6 +237,25 @@ function App() {
         .arcane-scroll::-webkit-scrollbar { width:3px; }
         .arcane-scroll::-webkit-scrollbar-track { background:transparent; }
         .arcane-scroll::-webkit-scrollbar-thumb { background:rgba(var(--color-primary),0.2); border-radius:3px; }
+        @keyframes slideInFromRight {
+          from { opacity: 0; transform: translateX(32px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInFromLeft {
+          from { opacity: 0; transform: translateX(-32px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        .slide-in-right { animation: slideInFromRight 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+        .slide-in-left  { animation: slideInFromLeft  0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .home-card { animation: fadeInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+        .home-card:nth-child(1) { animation-delay: 0.05s; }
+        .home-card:nth-child(2) { animation-delay: 0.15s; }
+        .home-card:nth-child(3) { animation-delay: 0.25s; }
+        .home-card:nth-child(4) { animation-delay: 0.35s; }
       `}</style>
 
       {/* HEADER */}
@@ -301,22 +320,78 @@ function App() {
         </div>
       </header>
 
-      {/* MAIN VIEWPORT — FIX: single <main>, correct view === checks, no orphaned JSX */}
+      {/* MAIN VIEWPORT */}
       <main className="flex-1 w-full h-[calc(100vh-80px)] overflow-hidden relative">
 
         {/* VIEW: HOME / SANCTUM */}
         {view === 'home' && (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center space-y-4 opacity-30">
-              <p className="font-serif italic text-2xl tracking-widest text-[rgb(var(--color-primary))]">Arcanum</p>
-              <p className="font-mono text-xs tracking-[0.3em] uppercase text-gray-500">Select a plane from the navigation above</p>
+          <div className="w-full h-full overflow-y-auto flex flex-col items-center justify-center px-8 py-12 slide-in-left">
+            {/* Hero sigil */}
+            <div className="mb-10 flex flex-col items-center gap-3 sigil-breathe">
+              <div className="relative flex items-center justify-center w-16 h-16">
+                <div className="absolute w-full h-full border border-[rgb(var(--color-primary))] rounded-full opacity-30 animate-cosmic-rotate" />
+                <div className="absolute w-10 h-10 border border-[rgb(var(--color-primary))] rotate-45 opacity-50" />
+                <div className="w-3 h-3 bg-[rgb(var(--color-primary))] rounded-full" style={{ boxShadow: '0 0 16px rgb(var(--color-primary))' }} />
+              </div>
+              <p className="font-serif italic text-4xl tracking-[0.25em] text-[rgb(var(--color-primary))]" style={{ textShadow: '0 0 30px rgb(var(--color-primary)/0.4)' }}>Arcanum</p>
+              <p className="font-mono text-[10px] tracking-[0.4em] uppercase text-gray-600">Planar Archive — Sanctum Interface</p>
+            </div>
+
+            {/* Quick-nav cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-3xl mb-10">
+              {[
+                { icon: '🗺️', title: 'Cartograph', desc: 'Navigate and annotate your planar maps. Draw territories, leylines, and sanctuary nodes.', target: 'map' },
+                { icon: '📖', title: 'Hall of Records', desc: 'Inscribe chronicle entries for every region, landmark, and figure in the archive.', target: 'recordhall' },
+                { icon: '🔭', title: 'Scry Mode', desc: 'Enter focus mode to view your world without editing tools — pure immersion.', target: null, action: () => setIsFocusMode(true) },
+              ].map((card) => (
+                <button
+                  key={card.title}
+                  onClick={() => card.action ? card.action() : setView(card.target)}
+                  className="home-card text-left p-5 rounded-xl border transition-all duration-300 group"
+                  style={{
+                    background: 'linear-gradient(145deg, rgba(var(--color-bg-surface), 0.7), rgba(var(--color-bg-main), 0.9))',
+                    borderColor: 'rgba(var(--color-primary), 0.12)',
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.4)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.12)'}
+                >
+                  <div className="text-2xl mb-3">{card.icon}</div>
+                  <h3 className="font-serif italic text-[rgb(var(--color-primary))] text-base tracking-wide mb-1 group-hover:opacity-100 transition-opacity">{card.title}</h3>
+                  <p className="font-mono text-[10px] text-gray-500 leading-relaxed">{card.desc}</p>
+                </button>
+              ))}
+            </div>
+
+            {/* Archive summary */}
+            <div className="home-card w-full max-w-3xl rounded-xl border p-5 flex items-center justify-between gap-6"
+              style={{
+                background: 'linear-gradient(145deg, rgba(var(--color-bg-surface), 0.5), rgba(var(--color-bg-main), 0.8))',
+                borderColor: 'rgba(var(--color-primary), 0.08)',
+              }}>
+              <div className="space-y-1">
+                <p className="font-mono text-[9px] text-gray-600 uppercase tracking-widest">Archive Status</p>
+                <p className="font-mono text-xs text-gray-400">
+                  <span className="text-[rgb(var(--color-primary))]">{maps.length}</span> plane{maps.length !== 1 ? 's' : ''} &nbsp;·&nbsp;
+                  <span className="text-[rgb(var(--color-primary))]">{mapData.length}</span> chronicle entr{mapData.length !== 1 ? 'ies' : 'y'}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setView('map')} className="font-mono text-[10px] px-4 py-2 rounded-lg border tracking-widest uppercase transition-all duration-300 hover:bg-[rgba(var(--color-primary),0.1)]"
+                  style={{ borderColor: 'rgba(var(--color-primary), 0.2)', color: 'rgb(var(--color-primary))' }}>
+                  Open Map
+                </button>
+                <button onClick={handleExport} className="font-mono text-[10px] px-4 py-2 rounded-lg border border-gray-800 text-gray-500 hover:text-gray-300 tracking-widest uppercase transition-all duration-300">
+                  Export
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* VIEW: CARTOGRAPH */}
         {view === 'map' && (
-          <div className="w-full h-full overflow-auto">
+          <div key="map" className="w-full h-full overflow-auto slide-in-right">
             <MapComponent
               mapData={mapData}
               setMapData={setMapData}
@@ -328,9 +403,9 @@ function App() {
           </div>
         )}
 
-        {/* VIEW: HALL OF RECORDS — FIX: now passes navigatedRecordId + setNavigatedRecordId */}
+        {/* VIEW: HALL OF RECORDS */}
         {view === 'recordhall' && (
-          <div className="w-full h-full overflow-y-auto">
+          <div key="recordhall" className="w-full h-full overflow-y-auto slide-in-right">
             <RecordHall
               mapData={mapData}
               setMapData={setMapData}

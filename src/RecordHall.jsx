@@ -71,7 +71,7 @@ const RecordHall = ({
       if (isListItem) {
         return (
           <div key={lineIdx} className="flex items-start gap-2 pl-2 my-1.5 animate-fadeIn">
-            <span className="text-amber-500 font-bold select-none mt-[3px] text-[9px] drop-shadow-[0_0_3px_#fbbf24]">✦</span>
+            <span className="font-bold select-none mt-[3px] text-[9px] drop-shadow-[0_0_3px_rgb(var(--color-primary))]" style={{ color: 'rgb(var(--color-primary))' }}>✦</span>
             <span className="flex-1 text-gray-300">{formattedLine}</span>
           </div>
         );
@@ -404,27 +404,27 @@ const RecordHall = ({
       {/* OVERLAY SYSTEM PREVIEW SCREEN */}
       {fullscreenRecord && (
         <div className="fixed inset-0 bg-black/90 z-[999] backdrop-blur-md flex items-center justify-center p-6" onClick={() => setFullscreenRecord(null)}>
-          <div className="bg-[#030611] border border-gray-900 rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto p-8 relative space-y-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-start border-b border-gray-900/80 pb-4">
+          <div className="border border-[rgba(var(--color-primary),0.15)] rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto p-8 relative space-y-6 shadow-2xl" style={{ background: 'linear-gradient(145deg, rgb(var(--color-bg-surface)), rgb(var(--color-bg-main)))' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start border-b border-[rgba(var(--color-primary),0.1)] pb-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: fullscreenRecord.color || '#fbbf24' }} />
-                  <span className="font-mono text-xs text-amber-500 tracking-widest uppercase">SYSTEM_ARCHIVE_LOG // {fullscreenRecord.subdivision || fullscreenRecord.type || "REGION"}</span>
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: fullscreenRecord.color || 'rgb(var(--color-primary))' }} />
+                  <span className="font-mono text-xs tracking-widest uppercase" style={{ color: 'rgb(var(--color-primary))' }}>SYSTEM_ARCHIVE_LOG // {fullscreenRecord.subdivision || fullscreenRecord.type || "REGION"}</span>
                 </div>
                 <h2 className="text-3xl font-light tracking-wide uppercase text-white">{fullscreenRecord.name}</h2>
               </div>
-              <button onClick={() => setFullscreenRecord(null)} className="font-mono text-xs text-gray-500 hover:text-white border border-gray-900 bg-black px-3 py-1.5 rounded-lg uppercase tracking-widest">[ Close Terminus ]</button>
+              <button onClick={() => setFullscreenRecord(null)} className="font-mono text-xs text-gray-500 hover:text-[rgb(var(--color-primary))] border border-[rgba(var(--color-primary),0.15)] bg-[rgba(var(--color-primary),0.05)] px-3 py-1.5 rounded-lg uppercase tracking-widest transition-colors">[ Close Terminus ]</button>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
-              <div className="md:col-span-1 space-y-5 border-r border-gray-900/40 pr-4">
+              <div className="md:col-span-1 space-y-5 border-r border-[rgba(var(--color-primary),0.08)] pr-4">
                 <div className="space-y-1.5">
                   <span className="font-mono text-[9px] text-gray-600 tracking-widest block uppercase">SYNOPSIS EXTRACT</span>
-                  <p className="font-mono text-xs text-gray-300 leading-relaxed bg-black/40 p-3 rounded-lg">{fullscreenRecord.summary || "No summary file mapped."}</p>
+                  <p className="font-mono text-xs text-gray-300 leading-relaxed bg-[rgba(var(--color-primary),0.04)] border border-[rgba(var(--color-primary),0.08)] p-3 rounded-lg">{fullscreenRecord.summary || "No summary file mapped."}</p>
                 </div>
                 <div className="space-y-1.5">
                   <span className="font-mono text-[9px] text-gray-600 tracking-widest block uppercase">KEY ATTUNED FIGURES</span>
-                  <div className="font-mono text-xs text-amber-200/80 leading-relaxed bg-amber-500/5 border border-amber-500/10 p-3 rounded-lg">
+                  <div className="font-mono text-xs leading-relaxed bg-[rgba(var(--color-primary),0.05)] border border-[rgba(var(--color-primary),0.1)] p-3 rounded-lg" style={{ color: 'rgb(var(--color-primary))' }}>
                     {fullscreenRecord.characters ? renderFormattedText(fullscreenRecord.characters) : "No identities tracked."}
                   </div>
                 </div>
@@ -433,13 +433,13 @@ const RecordHall = ({
               <div className="md:col-span-2 space-y-6">
                 <div className="space-y-2">
                   <span className="font-mono text-[9px] text-gray-600 tracking-widest block uppercase">CHRONICLE STORIES COMPREHENSIVE LORE</span>
-                  <div className="font-lore text-sm text-gray-400 leading-loose pl-2 border-l border-amber-500/30">
+                  <div className="font-lore text-sm text-gray-400 leading-loose pl-2 border-l border-[rgba(var(--color-primary),0.3)]">
                     {fullscreenRecord.lore ? renderFormattedText(fullscreenRecord.lore) : "No narratives mapped."}
                   </div>
                 </div>
 
                 {fullscreenRecord.images && fullscreenRecord.images.length > 0 && (
-                  <div className="space-y-2 border-t border-gray-900/40 pt-4">
+                  <div className="space-y-2 border-t border-[rgba(var(--color-primary),0.08)] pt-4">
                     <span className="font-mono text-[9px] text-gray-600 tracking-widest block uppercase">IMAGE MANIFEST ASSETS</span>
                     <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto">
                       {fullscreenRecord.images.map((src, idx) => (
