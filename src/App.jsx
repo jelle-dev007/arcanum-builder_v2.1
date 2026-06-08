@@ -318,7 +318,7 @@ function App() {
           <section className="w-1/3 h-full overflow-y-auto arcane-scroll p-8">
             <div className="max-w-4xl mx-auto space-y-12 py-12">
               <div className="text-center space-y-6">
-                <h1 className="text-6xl font-light tracking-[0.15em] uppercase text-transparent bg-clip-text bg-gradient-to-b from-gray-50 to-gray-600 transition-colors duration-1000">Welcome</h1>
+                <h1 className="text-6xl font-light tracking-[0.15em] uppercase text-transparent bg-clip-text bg-gradient-to-b from-gray-50 to-gray-600 transition-colors duration-1000">Welcomeeee</h1>
                 <h2 className="text-7xl font-serif italic tracking-[0.1em] text-[rgb(var(--color-primary))] transition-colors duration-1000" style={{ textShadow: '0 0 50px rgb(var(--color-primary) / 0.3)' }}>Creator</h2>
                 
                 {/* TOOL GUIDE BOX */}
