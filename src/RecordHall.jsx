@@ -33,6 +33,7 @@ const RecordHall = ({
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [linkSearchQuery, setLinkSearchQuery] = useState('');
   const textAreaRef = useRef(null);
+  const [slideshowIndex, setSlideshowIndex] = useState(0);
 
   useEffect(() => {
     if (navigatedRecordId) {
@@ -49,6 +50,17 @@ const RecordHall = ({
       setActiveExpandedField(null);
     }
   }, [isFocusMode]);
+
+  useEffect(() => {
+    if (!hoveredLinkTarget || !hoveredLinkTarget.images || hoveredLinkTarget.images.length <= 1) {
+      setSlideshowIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setSlideshowIndex((prevIndex) => (prevIndex + 1) % hoveredLinkTarget.images.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [hoveredLinkTarget]);
 
   // ================= GRIMOIRE WEB LINK COMPONENT =================
   const LoreLink = ({ targetId, displayText }) => {
@@ -240,17 +252,30 @@ const RecordHall = ({
     <div className="space-y-8 py-4 animate-fadeIn">
       
       {/* GLOBAL HOVER TOOLTIP FOR LORE LINKS */}
-      {hoveredLinkTarget && !isFocusMode && (
+     {hoveredLinkTarget && !isFocusMode && (
         <div 
-          className="fixed bg-black/95 border border-gray-800 p-4 rounded-lg max-w-xs w-64 z-[9999] pointer-events-none shadow-2xl space-y-2 backdrop-blur-md"
+          className="fixed bg-black/95 border border-gray-800 p-4 rounded-lg max-w-xs w-64 z-[9999] pointer-events-none shadow-2xl space-y-2 backdrop-blur-md transition-opacity duration-150"
           style={{ top: linkTooltipPos.y + 15, left: linkTooltipPos.x + 15 }}
         >
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: hoveredLinkTarget.color || 'rgb(var(--color-primary))' }} />
-            <h4 className="font-mono text-xs font-bold uppercase tracking-wider" style={{ color: hoveredLinkTarget.color || 'rgb(var(--color-primary))' }}>
+            <h4 className="font-mono text-xs font-bold uppercase tracking-wider" style={{ color: hoveredLinkTarget.color || 'rgb(var(--color-primary))', textShadow: '0 0 8px currentColor' }}>
               {hoveredLinkTarget.name}
             </h4>
           </div>
+
+          {/* --- NEW: THE SLIDESHOW BLOCK --- */}
+          {hoveredLinkTarget.images && hoveredLinkTarget.images.length > 0 && (
+            <div className="w-full h-28 relative rounded overflow-hidden bg-black/40 border border-gray-900 mt-1 mb-1">
+              <img src={hoveredLinkTarget.images[slideshowIndex]} alt="Archive Presentation" className="w-full h-full object-cover" />
+              {hoveredLinkTarget.images.length > 1 && (
+                <div className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 text-[8px] font-mono text-gray-400 rounded border border-gray-800">
+                  {slideshowIndex + 1} / {hoveredLinkTarget.images.length}
+                </div>
+              )}
+            </div>
+          )}
+
           <p className="text-gray-400 text-[11px] font-mono leading-normal line-clamp-3">
             {hoveredLinkTarget.summary || "No parchment lore logged here."}
           </p>
