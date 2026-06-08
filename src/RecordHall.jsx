@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 const RecordHall = ({ 
   mapData = [], 
@@ -6,14 +6,13 @@ const RecordHall = ({
   isFocusMode,
   currentPoints = [],
   setCurrentPoints,
-  // ⚡ NEW PROPS: Catches the signal when a user jumps here from a map click
   navigatedRecordId,
   setNavigatedRecordId
 }) => {
   const [editingId, setEditingId] = useState(null);
   const [fullscreenRecord, setFullscreenRecord] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [activeExpandedField, setActiveExpandedField] = useState(null); // 'lore' | 'characters' | null
+  const [activeExpandedField, setActiveExpandedField] = useState(null);
 
   // Search Engine State
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,20 +27,98 @@ const RecordHall = ({
   const [images, setImages] = useState([]);
   const [color, setColor] = useState("#fbbf24");
 
-  // FIXED: Listens for remote navigation from the Map component and automatically opens the Full Grimoire sheet
+  // Hyperlink Tool State
+  const [hoveredLinkTarget, setHoveredLinkTarget] = useState(null);
+  const [linkTooltipPos, setLinkTooltipPos] = useState({ x: 0, y: 0 });
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [linkSearchQuery, setLinkSearchQuery] = useState('');
+  const textAreaRef = useRef(null);
+  const [slideshowIndex, setSlideshowIndex] = useState(0);
+
   useEffect(() => {
     if (navigatedRecordId) {
       const targetEntry = mapData.find(item => String(item.id) === String(navigatedRecordId));
-      if (targetEntry) {
-        setFullscreenRecord(targetEntry);
-      }
-      if (setNavigatedRecordId) {
-        setNavigatedRecordId(null); // Reset the signal so it can be re-triggered later
-      }
+      if (targetEntry) setFullscreenRecord(targetEntry);
+      if (setNavigatedRecordId) setNavigatedRecordId(null);
     }
   }, [navigatedRecordId, mapData, setNavigatedRecordId]);
 
-  // Advanced Text Formatting & Auto-Listing Parser Engine
+  useEffect(() => {
+    if (isFocusMode) {
+      setIsFormOpen(false);
+      setEditingId(null);
+      setActiveExpandedField(null);
+    }
+  }, [isFocusMode]);
+
+  useEffect(() => {
+    if (!hoveredLinkTarget || !hoveredLinkTarget.images || hoveredLinkTarget.images.length <= 1) {
+      setSlideshowIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setSlideshowIndex((prevIndex) => (prevIndex + 1) % hoveredLinkTarget.images.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [hoveredLinkTarget]);
+
+  // ================= GRIMOIRE WEB LINK COMPONENT =================
+  const LoreLink = ({ targetId, displayText }) => {
+    const targetEntry = mapData.find(e => String(e.id) === String(targetId));
+    
+    if (!targetEntry) {
+      return <span className="text-gray-600 line-through decoration-red-900/50 cursor-help" title="Record Erased">{displayText}</span>;
+    }
+
+    return (
+      <span
+        className="cursor-pointer font-bold transition-all duration-300"
+        style={{ 
+          color: targetEntry.color || 'rgb(var(--color-primary))',
+          textDecoration: 'underline',
+          textDecorationStyle: 'dashed',
+          textUnderlineOffset: '3px',
+          textDecorationColor: 'rgba(var(--color-primary), 0.4)'
+        }}
+        onMouseEnter={(e) => {
+          setLinkTooltipPos({ x: e.clientX, y: e.clientY });
+          setHoveredLinkTarget(targetEntry);
+        }}
+        onMouseMove={(e) => setLinkTooltipPos({ x: e.clientX, y: e.clientY })}
+        onMouseLeave={() => setHoveredLinkTarget(null)}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setHoveredLinkTarget(null);
+          setFullscreenRecord(targetEntry);
+        }}
+      >
+        {displayText}
+      </span>
+    );
+  };
+
+  // ================= TEXT SELECTION & LINK INJECTION =================
+  const handleInsertLink = (targetId, targetName) => {
+    if (!textAreaRef.current) return;
+    
+    const start = textAreaRef.current.selectionStart;
+    const end = textAreaRef.current.selectionEnd;
+    const currentText = activeExpandedField === 'lore' ? lore : characters;
+
+    const selectedText = currentText.substring(start, end);
+    const textToWrap = selectedText || targetName; 
+    
+    const newText = currentText.substring(0, start) + `[[${targetId}|${textToWrap}]]` + currentText.substring(end);
+
+    if (activeExpandedField === 'lore') setLore(newText);
+    else setCharacters(newText);
+
+    setIsLinkModalOpen(false);
+    setLinkSearchQuery('');
+    setTimeout(() => textAreaRef.current?.focus(), 0);
+  };
+
+  // ================= TEXT PARSER ENGINE =================
   const renderFormattedText = (text) => {
     if (!text) return "";
     const lines = text.split('\n');
@@ -55,10 +132,19 @@ const RecordHall = ({
         displayLine = line.trim().replace(/^([-*•]\s*)/, '');
       }
 
-      const regex = /(\*\*.*?\*\*|\*.*?\*)/g;
+      const regex = /(\[\[.*?\|.*?\]\]|\*\*.*?\*\*|\*.*?\*)/g;
       const tokens = displayLine.split(regex);
       
       const formattedLine = tokens.map((token, tokenIdx) => {
+        if (token.startsWith('[[') && token.endsWith(']]')) {
+          const innerContent = token.slice(2, -2);
+          const firstPipeIdx = innerContent.indexOf('|');
+          if (firstPipeIdx > -1) {
+            const id = innerContent.substring(0, firstPipeIdx);
+            const text = innerContent.substring(firstPipeIdx + 1);
+            return <LoreLink key={tokenIdx} targetId={id} displayText={text} />;
+          }
+        }
         if (token.startsWith('**') && token.endsWith('**')) {
           return <strong key={tokenIdx} className="font-bold text-white shadow-[0_0_10px_rgba(255,255,255,0.1)]">{token.slice(2, -2)}</strong>;
         }
@@ -95,45 +181,19 @@ const RecordHall = ({
     });
   }, [mapData, searchQuery, activeTypeFilter]);
 
-  useEffect(() => {
-    if (isFocusMode) {
-      setIsFormOpen(false);
-      setEditingId(null);
-      setActiveExpandedField(null);
-    }
-  }, [isFocusMode]);
-
   const handleInscribe = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
 
     if (editingId) {
-      // OVERWRITE LOGIC
-      const updatedEntry = {
-        name, 
-        subdivision, 
-        type: subdivision, 
-        summary, 
-        lore, 
-        characters, 
-        images, 
-        color
-      };
+      const updatedEntry = { name, subdivision, type: subdivision, summary, lore, characters, images, color };
       setMapData(mapData.map(entry => entry.id === editingId ? { ...entry, ...updatedEntry } : entry));
       setEditingId(null);
     } else {
-      // NEW INSCRIPTION LOGIC (Safely binds canvas vectors)
       const newEntry = {
-        id: Date.now(), 
-        name, 
-        subdivision, 
-        type: subdivision, 
+        id: Date.now(), name, subdivision, type: subdivision, 
         points: currentPoints.length > 0 ? [...currentPoints] : null, 
-        summary, 
-        lore, 
-        characters, 
-        images, 
-        color
+        summary, lore, characters, images, color
       };
       setMapData([...mapData, newEntry]);
     }
@@ -168,16 +228,12 @@ const RecordHall = ({
     const files = Array.from(e.target.files);
     files.forEach(file => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImages(prev => [...prev, reader.result]);
-      };
+      reader.onloadend = () => setImages(prev => [...prev, reader.result]);
       reader.readAsDataURL(file);
     });
   };
 
-  const handleRemoveImage = (index) => {
-    setImages(images.filter((_, i) => i !== index));
-  };
+  const handleRemoveImage = (index) => setImages(images.filter((_, i) => i !== index));
 
   const resetForm = () => {
     setEditingId(null);
@@ -195,6 +251,38 @@ const RecordHall = ({
   return (
     <div className="space-y-8 py-4 animate-fadeIn">
       
+      {/* GLOBAL HOVER TOOLTIP FOR LORE LINKS */}
+     {hoveredLinkTarget && !isFocusMode && (
+        <div 
+          className="fixed bg-black/95 border border-gray-800 p-4 rounded-lg max-w-xs w-64 z-[9999] pointer-events-none shadow-2xl space-y-2 backdrop-blur-md transition-opacity duration-150"
+          style={{ top: linkTooltipPos.y + 15, left: linkTooltipPos.x + 15 }}
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: hoveredLinkTarget.color || 'rgb(var(--color-primary))' }} />
+            <h4 className="font-mono text-xs font-bold uppercase tracking-wider" style={{ color: hoveredLinkTarget.color || 'rgb(var(--color-primary))', textShadow: '0 0 8px currentColor' }}>
+              {hoveredLinkTarget.name}
+            </h4>
+          </div>
+
+          {/* --- NEW: THE SLIDESHOW BLOCK --- */}
+          {hoveredLinkTarget.images && hoveredLinkTarget.images.length > 0 && (
+            <div className="w-full h-28 relative rounded overflow-hidden bg-black/40 border border-gray-900 mt-1 mb-1">
+              <img src={hoveredLinkTarget.images[slideshowIndex]} alt="Archive Presentation" className="w-full h-full object-cover" />
+              {hoveredLinkTarget.images.length > 1 && (
+                <div className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 text-[8px] font-mono text-gray-400 rounded border border-gray-800">
+                  {slideshowIndex + 1} / {hoveredLinkTarget.images.length}
+                </div>
+              )}
+            </div>
+          )}
+
+          <p className="text-gray-400 text-[11px] font-mono leading-normal line-clamp-3">
+            {hoveredLinkTarget.summary || "No parchment lore logged here."}
+          </p>
+          <span className="text-[8px] text-gray-600 font-mono block pt-1 uppercase tracking-widest">[ Double-Click to Open ]</span>
+        </div>
+      )}
+
       {/* CONTROL TRIGGER BAR */}
       {!isFocusMode && (
         <div className="flex justify-center animate-fadeIn">
@@ -240,21 +328,23 @@ const RecordHall = ({
               <div className="space-y-1">
                 <label className="font-mono text-[9px] text-gray-500 tracking-wider block">SUBDIVISION TYPE</label>
                 <select value={subdivision} onChange={(e) => setSubdivision(e.target.value)} className="w-full bg-black border border-gray-900 p-2.5 text-xs font-mono text-gray-300 rounded layout-box outline-none focus:border-amber-500/40">
-                  <option value="region">REGIONAL CONTEXT</option>
-                  <option value="landmark">LANDMARK INTERSECT</option>
+                  <option value="region">REGION</option>
+                  <option value="landmark">LANDMARK</option>
+                  <option value="character">KEY FIGURE (NON-MAP)</option>
                 </select>
               </div>
             </div>
 
-            {/* Geometry Status Indicator Tool */}
-            <div className="bg-black/40 border border-gray-900 px-3 py-2 rounded font-mono text-[10px] flex justify-between items-center">
-              <span className="text-gray-500">BOUND GEOMETRY VECTOR DATA:</span>
-              {currentPoints.length > 0 ? (
-                <span className="text-emerald-400 font-bold animate-pulse">⚡ READY ({subdivision === 'landmark' ? 'POINT OBJECT' : `${currentPoints.length / 2} NODES CAPTURED`})</span>
-              ) : (
-                <span className="text-amber-500/70">⚠️ NO DRAWING RECORDED (WILL SAVE AS TEXT ONLY)</span>
-              )}
-            </div>
+            {subdivision !== 'character' && (
+              <div className="bg-black/40 border border-gray-900 px-3 py-2 rounded font-mono text-[10px] flex justify-between items-center">
+                <span className="text-gray-500">BOUND GEOMETRY VECTOR DATA:</span>
+                {currentPoints.length > 0 ? (
+                  <span className="text-emerald-400 font-bold animate-pulse">⚡ READY ({subdivision === 'landmark' ? 'POINT OBJECT' : `${currentPoints.length / 2} NODES CAPTURED`})</span>
+                ) : (
+                  <span className="text-amber-500/70">⚠️ NO DRAWING RECORDED (WILL SAVE AS TEXT ONLY)</span>
+                )}
+              </div>
+            )}
 
             <div className="space-y-1">
               <label className="font-mono text-[9px] text-gray-500 tracking-wider block">CHRONICLE SYNOPSIS (COMPACT MAPPING LINE)</label>
@@ -340,7 +430,7 @@ const RecordHall = ({
           </div>
 
           <div className="flex gap-2 w-full md:w-auto bg-black/40 p-1 rounded-lg border border-gray-800">
-            {['all', 'region', 'landmark'].map((type) => (
+            {['all', 'region', 'landmark', 'character'].map((type) => (
               <button
                 key={type}
                 onClick={() => setActiveTypeFilter(type)}
@@ -467,7 +557,19 @@ const RecordHall = ({
                   Focused Editor: {activeExpandedField === 'lore' ? "Historical Annal Lore" : "Associated Key Figures / Characters"}
                 </h2>
               </div>
-              <button type="button" onClick={() => setActiveExpandedField(null)} className="font-mono text-xs text-black bg-amber-500 hover:bg-amber-600 px-5 py-2.5 rounded-xl uppercase font-bold tracking-widest transition-colors">[ Keep & Return ]</button>
+              
+              <div className="flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setIsLinkModalOpen(true)} 
+                  className="font-mono text-xs text-amber-400 border border-amber-500/40 hover:bg-amber-500/10 px-4 py-2.5 rounded-xl uppercase tracking-widest transition-colors"
+                >
+                  🔗 Link Entity
+                </button>
+                <button type="button" onClick={() => setActiveExpandedField(null)} className="font-mono text-xs text-black bg-amber-500 hover:bg-amber-600 px-5 py-2.5 rounded-xl uppercase font-bold tracking-widest transition-colors">
+                  [ Keep & Return ]
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-x-6 gap-y-1 bg-black/40 border border-gray-900 px-4 py-2 rounded-xl font-mono text-[10px] text-gray-500">
@@ -477,17 +579,68 @@ const RecordHall = ({
               <div>Start lines with <code className="text-gray-300 bg-gray-900 px-1 py-0.5 rounded">- </code>, <code className="text-gray-300 bg-gray-900 px-1 py-0.5 rounded">* </code>, or <code className="text-gray-300 bg-gray-900 px-1 py-0.5 rounded">• </code> to render <span className="text-amber-400 font-bold">✦ Bullet Lists</span></div>
             </div>
 
-            <div className="flex-1 w-full pb-4">
+            <div className="flex-1 w-full pb-4 relative">
               <textarea
+                ref={textAreaRef}
                 value={activeExpandedField === 'lore' ? lore : characters}
                 onChange={(e) => {
                   if (activeExpandedField === 'lore') setLore(e.target.value);
                   else setCharacters(e.target.value);
                 }}
-                placeholder={activeExpandedField === 'lore' ? "Begin writing extensive records. Use - at the start of a line to generate styled lists..." : "Catalog entities. Use - at the start of a line to generate styled lists..."}
+                placeholder={activeExpandedField === 'lore' ? "Begin writing extensive records. Highlight text and click 'Link Entity' to weave connections..." : "Catalog entities. Highlight text and click 'Link Entity' to weave connections..."}
                 className="w-full h-full bg-black/60 border border-gray-800 p-6 text-sm font-mono text-gray-200 rounded-xl outline-none focus:border-amber-500/60 resize-none leading-relaxed shadow-inner"
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= LINK SELECTION MODAL ================= */}
+      {isLinkModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={() => setIsLinkModalOpen(false)}>
+          <div className="bg-[#0b0f19] border border-gray-800 p-6 rounded-xl max-w-lg w-full space-y-4 shadow-2xl animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 className="font-mono text-sm font-bold text-amber-400 uppercase tracking-wider">🔗 Weave Grimoire Link</h3>
+              <p className="text-gray-400 text-xs font-mono mt-1">Search the archive for the entity you wish to bind to the selected text.</p>
+            </div>
+
+            <input
+              autoFocus
+              type="text"
+              placeholder="Query archive by name..."
+              value={linkSearchQuery}
+              onChange={(e) => setLinkSearchQuery(e.target.value)}
+              className="w-full bg-black border border-gray-800 text-gray-200 text-xs font-mono p-2.5 rounded outline-none focus:border-amber-500/40"
+            />
+
+            <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+              {mapData
+                .filter(e => e.name.toLowerCase().includes(linkSearchQuery.toLowerCase()) && e.id !== editingId)
+                .map(entry => (
+                  <button
+                    key={entry.id}
+                    onClick={() => handleInsertLink(entry.id, entry.name)}
+                    className="w-full text-left bg-gray-950/50 hover:bg-[rgba(var(--color-primary),0.1)] border border-gray-900 hover:border-[rgba(var(--color-primary),0.3)] p-3 rounded-lg transition-colors flex justify-between items-center group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || '#fbbf24' }} />
+                      <span className="font-mono text-xs text-gray-300 group-hover:text-white uppercase tracking-wider">{entry.name}</span>
+                    </div>
+                    <span className="font-mono text-[9px] text-gray-600 uppercase tracking-widest">{entry.subdivision || entry.type}</span>
+                  </button>
+                ))
+              }
+              {mapData.filter(e => e.name.toLowerCase().includes(linkSearchQuery.toLowerCase()) && e.id !== editingId).length === 0 && (
+                 <p className="text-center font-mono text-xs text-gray-600 py-4 uppercase">No matching entities found.</p>
+              )}
+            </div>
+
+            <button 
+              onClick={() => setIsLinkModalOpen(false)}
+              className="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 font-mono text-xs py-2 rounded uppercase transition-colors mt-2"
+            >
+              Cancel Binding
+            </button>
           </div>
         </div>
       )}

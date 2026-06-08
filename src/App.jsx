@@ -161,9 +161,15 @@ function App() {
 
   const [maps, setMaps] = useState(() => JSON.parse(localStorage.getItem('world_archive_maps')) || [{ id: 'map-prime', name: "PRIME MATERIAL PLANE", imageUrl: null, data: [] }]);
   const [activeMapId, setActiveMapId] = useState(() => localStorage.getItem('world_archive_active_id') || 'map-prime');
-  const [newMapName, setNewMapName] = useState("");
+
+  // Home screen plane-management UI state
+  const [isAddingPlane, setIsAddingPlane] = useState(false);
+  const [newPlaneName, setNewPlaneName]   = useState('');
+  const [importError, setImportError]     = useState('');
+  const importFileRef = useRef(null);
 
   useEffect(() => { localStorage.setItem('world_archive_maps', JSON.stringify(maps)); }, [maps]);
+  useEffect(() => { localStorage.setItem('world_archive_active_id', activeMapId); }, [activeMapId]);
 
   const currentMap = maps.find(m => m.id === activeMapId) || maps[0] || { id: 'empty', name: 'VOID', data: [] };
   const mapData = currentMap.data;
@@ -180,10 +186,31 @@ function App() {
 
   const updateMapImage = (newUrl) => setMaps(prev => prev.map(m => m.id === activeMapId ? { ...m, imageUrl: newUrl } : m));
 
-  const deleteMap = (idToDelete) => {
-    if (window.confirm("Sever this plane from the archive?")) {
+  const handleAddPlane = () => {
+    const trimmed = newPlaneName.trim();
+    if (!trimmed) return;
+    const newMap = { id: `map-${Date.now()}`, name: trimmed.toUpperCase(), imageUrl: null, data: [] };
+    setMaps(prev => [...prev, newMap]);
+    setActiveMapId(newMap.id);
+    setNewPlaneName('');
+    setIsAddingPlane(false);
+    setView('map');
+  };
+
+  const handleSelectPlane = (mapId) => {
+    setActiveMapId(mapId);
+    setView('map');
+  };
+
+  const deleteMap = (e, idToDelete) => {
+    e.stopPropagation();
+    if (maps.length === 1) { alert("The last plane cannot be severed — the archive must contain at least one."); return; }
+    if (window.confirm("Sever this plane and all its chronicle data from the archive?")) {
       setMaps(prev => prev.filter(m => m.id !== idToDelete));
-      if (activeMapId === idToDelete) setActiveMapId(null);
+      if (activeMapId === idToDelete) {
+        const remaining = maps.filter(m => m.id !== idToDelete);
+        setActiveMapId(remaining[0]?.id || null);
+      }
     }
   };
 
@@ -191,6 +218,33 @@ function App() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(maps));
     const a = document.createElement('a'); a.setAttribute("href", dataStr); a.setAttribute("download", "arcanum_archive.json");
     document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  const handleImportFile = (e) => {
+    setImportError('');
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const incoming = Array.isArray(parsed) ? parsed : [parsed];
+        if (!incoming.every(m => m.id && m.name && Array.isArray(m.data))) {
+          throw new Error("Unrecognised archive format.");
+        }
+        setMaps(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const fresh = incoming.filter(m => !existingIds.has(m.id));
+          return [...prev, ...fresh];
+        });
+        setActiveMapId(incoming[0].id);
+        setView('map');
+      } catch (err) {
+        setImportError(`Import failed: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // FIX: handleNavigateToRecord is now correctly inside App, not AstralHaloBackground
@@ -271,7 +325,7 @@ function App() {
             </div>
             <div className="flex flex-col leading-tight">
               <span className="font-serif italic tracking-[0.2em] text-[13px] text-[rgb(var(--color-primary))] transition-colors duration-1000">Arcanum</span>
-              <span className="font-mono tracking-[0.2em] text-[7.5px] text-gray-500 uppercase mt-0.5">Planar Archive</span>
+              <span className="font-mono tracking-[0.15em] text-[7px] text-gray-500 uppercase mt-0.5 max-w-[120px] truncate">{currentMap?.name || 'Planar Archive'}</span>
             </div>
           </div>
           {!isFocusMode && (
@@ -325,66 +379,173 @@ function App() {
 
         {/* VIEW: HOME / SANCTUM */}
         {view === 'home' && (
-          <div className="w-full h-full overflow-y-auto flex flex-col items-center justify-center px-8 py-12 slide-in-left">
-            {/* Hero sigil */}
-            <div className="mb-10 flex flex-col items-center gap-3 sigil-breathe">
-              <div className="relative flex items-center justify-center w-16 h-16">
-                <div className="absolute w-full h-full border border-[rgb(var(--color-primary))] rounded-full opacity-30 animate-cosmic-rotate" />
-                <div className="absolute w-10 h-10 border border-[rgb(var(--color-primary))] rotate-45 opacity-50" />
-                <div className="w-3 h-3 bg-[rgb(var(--color-primary))] rounded-full" style={{ boxShadow: '0 0 16px rgb(var(--color-primary))' }} />
-              </div>
-              <p className="font-serif italic text-4xl tracking-[0.25em] text-[rgb(var(--color-primary))]" style={{ textShadow: '0 0 30px rgb(var(--color-primary)/0.4)' }}>Arcanum</p>
-              <p className="font-mono text-[10px] tracking-[0.4em] uppercase text-gray-600">Planar Archive — Sanctum Interface</p>
-            </div>
+          <div className="w-full h-full overflow-y-auto px-6 py-10 slide-in-left">
+            <div className="max-w-4xl mx-auto space-y-10">
 
-            {/* Quick-nav cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-3xl mb-10">
-              {[
-                { icon: '🗺️', title: 'Cartograph', desc: 'Navigate and annotate your planar maps. Draw territories, leylines, and sanctuary nodes.', target: 'map' },
-                { icon: '📖', title: 'Hall of Records', desc: 'Inscribe chronicle entries for every region, landmark, and figure in the archive.', target: 'recordhall' },
-                { icon: '🔭', title: 'Scry Mode', desc: 'Enter focus mode to view your world without editing tools — pure immersion.', target: null, action: () => setIsFocusMode(true) },
-              ].map((card) => (
-                <button
-                  key={card.title}
-                  onClick={() => card.action ? card.action() : setView(card.target)}
-                  className="home-card text-left p-5 rounded-xl border transition-all duration-300 group"
-                  style={{
-                    background: 'linear-gradient(145deg, rgba(var(--color-bg-surface), 0.7), rgba(var(--color-bg-main), 0.9))',
-                    borderColor: 'rgba(var(--color-primary), 0.12)',
-                    boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.4)'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.12)'}
-                >
-                  <div className="text-2xl mb-3">{card.icon}</div>
-                  <h3 className="font-serif italic text-[rgb(var(--color-primary))] text-base tracking-wide mb-1 group-hover:opacity-100 transition-opacity">{card.title}</h3>
-                  <p className="font-mono text-[10px] text-gray-500 leading-relaxed">{card.desc}</p>
-                </button>
-              ))}
-            </div>
+              {/* Hero */}
+              <div className="flex flex-col items-center gap-3 sigil-breathe pt-2">
+                <div className="relative flex items-center justify-center w-14 h-14">
+                  <div className="absolute w-full h-full border border-[rgb(var(--color-primary))] rounded-full opacity-30 animate-cosmic-rotate" />
+                  <div className="absolute w-9 h-9 border border-[rgb(var(--color-primary))] rotate-45 opacity-50" />
+                  <div className="w-2.5 h-2.5 bg-[rgb(var(--color-primary))] rounded-full" style={{ boxShadow: '0 0 14px rgb(var(--color-primary))' }} />
+                </div>
+                <p className="font-serif italic text-3xl tracking-[0.25em] text-[rgb(var(--color-primary))]" style={{ textShadow: '0 0 28px rgba(var(--color-primary),0.35)' }}>Arcanum</p>
+                <p className="font-mono text-[9px] tracking-[0.4em] uppercase text-gray-600">Planar Archive — Sanctum Interface</p>
+              </div>
 
-            {/* Archive summary */}
-            <div className="home-card w-full max-w-3xl rounded-xl border p-5 flex items-center justify-between gap-6"
-              style={{
-                background: 'linear-gradient(145deg, rgba(var(--color-bg-surface), 0.5), rgba(var(--color-bg-main), 0.8))',
-                borderColor: 'rgba(var(--color-primary), 0.08)',
-              }}>
-              <div className="space-y-1">
-                <p className="font-mono text-[9px] text-gray-600 uppercase tracking-widest">Archive Status</p>
-                <p className="font-mono text-xs text-gray-400">
-                  <span className="text-[rgb(var(--color-primary))]">{maps.length}</span> plane{maps.length !== 1 ? 's' : ''} &nbsp;·&nbsp;
-                  <span className="text-[rgb(var(--color-primary))]">{mapData.length}</span> chronicle entr{mapData.length !== 1 ? 'ies' : 'y'}
-                </p>
+              {/* Planes manager */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-mono text-[9px] tracking-[0.3em] uppercase text-gray-600">Registered Planes</p>
+                    <p className="font-serif italic text-[rgb(var(--color-primary))] text-sm mt-0.5">
+                      {maps.length} plane{maps.length !== 1 ? 's' : ''} in the archive
+                      {currentMap && <span className="font-mono text-[10px] text-gray-500 ml-3 not-italic">active: {currentMap.name}</span>}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <input ref={importFileRef} type="file" accept=".json" onChange={handleImportFile} className="hidden" />
+                    <button
+                      onClick={() => importFileRef.current?.click()}
+                      className="font-mono text-[9px] px-3 py-2 rounded-lg border border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600 uppercase tracking-widest transition-all duration-200"
+                    >↑ Import .json</button>
+                    <button
+                      onClick={handleExport}
+                      className="font-mono text-[9px] px-3 py-2 rounded-lg border border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600 uppercase tracking-widest transition-all duration-200"
+                    >↓ Export .json</button>
+                  </div>
+                </div>
+
+                {importError && (
+                  <div className="rounded-lg border border-red-900/60 bg-red-950/20 px-4 py-2 font-mono text-[10px] text-red-400 flex justify-between items-center">
+                    {importError}
+                    <button onClick={() => setImportError('')} className="text-red-600 hover:text-red-400 ml-4">✕</button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {maps.map((m, idx) => {
+                    const isActive = m.id === activeMapId;
+                    const entryCount = m.data?.length || 0;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => handleSelectPlane(m.id)}
+                        className="home-card group relative text-left rounded-xl border p-4 transition-all duration-300 overflow-hidden"
+                        style={{
+                          animationDelay: `${idx * 0.06}s`,
+                          background: isActive
+                            ? 'linear-gradient(135deg, rgba(var(--color-primary),0.1), rgba(var(--color-bg-surface),0.9))'
+                            : 'linear-gradient(145deg, rgba(var(--color-bg-surface),0.6), rgba(var(--color-bg-main),0.85))',
+                          borderColor: isActive ? 'rgba(var(--color-primary),0.5)' : 'rgba(var(--color-primary),0.1)',
+                          boxShadow: isActive ? '0 0 20px rgba(var(--color-primary),0.12)' : '0 4px 20px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        {isActive && (
+                          <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-primary))]"
+                            style={{ boxShadow: '0 0 6px rgb(var(--color-primary))' }} />
+                        )}
+                        <div className="w-full h-20 rounded-lg mb-3 overflow-hidden border border-white/5 bg-black/30 flex items-center justify-center">
+                          {m.imageUrl
+                            ? <img src={m.imageUrl} alt={m.name} className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity" />
+                            : <span className="font-mono text-[9px] text-gray-700 uppercase tracking-widest">No map loaded</span>
+                          }
+                        </div>
+                        <p className="font-serif italic text-[11px] tracking-wide truncate"
+                          style={{ color: isActive ? 'rgb(var(--color-primary))' : '#9ca3af' }}>
+                          {m.name}
+                        </p>
+                        <p className="font-mono text-[8px] text-gray-600 mt-0.5 uppercase tracking-widest">
+                          {entryCount} chronicle entr{entryCount !== 1 ? 'ies' : 'y'}
+                        </p>
+                        {maps.length > 1 && (
+                          <button
+                            onClick={(e) => deleteMap(e, m.id)}
+                            className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 font-mono text-[8px] text-gray-600 hover:text-red-400 transition-all duration-200 uppercase tracking-wider"
+                          >✕ sever</button>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  {!isAddingPlane ? (
+                    <button
+                      onClick={() => setIsAddingPlane(true)}
+                      className="home-card rounded-xl border border-dashed p-4 flex flex-col items-center justify-center gap-2 transition-all duration-300 min-h-[148px]"
+                      style={{
+                        animationDelay: `${maps.length * 0.06}s`,
+                        borderColor: 'rgba(var(--color-primary),0.15)',
+                        background: 'transparent',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary),0.4)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary),0.15)'}
+                    >
+                      <span className="text-2xl opacity-40" style={{ color: 'rgb(var(--color-primary))' }}>＋</span>
+                      <span className="font-mono text-[9px] uppercase tracking-widest text-gray-600">New Plane</span>
+                    </button>
+                  ) : (
+                    <div
+                      className="home-card rounded-xl border p-4 flex flex-col gap-3 min-h-[148px]"
+                      style={{
+                        animationDelay: `${maps.length * 0.06}s`,
+                        borderColor: 'rgba(var(--color-primary),0.3)',
+                        background: 'linear-gradient(145deg, rgba(var(--color-bg-surface),0.7), rgba(var(--color-bg-main),0.9))',
+                      }}
+                    >
+                      <p className="font-mono text-[9px] uppercase tracking-widest text-gray-500">Name this plane</p>
+                      <input
+                        autoFocus
+                        value={newPlaneName}
+                        onChange={e => setNewPlaneName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleAddPlane();
+                          if (e.key === 'Escape') { setIsAddingPlane(false); setNewPlaneName(''); }
+                        }}
+                        placeholder="e.g. SHADOW REALM..."
+                        className="w-full bg-black/50 border border-gray-800 focus:border-[rgb(var(--color-primary))] text-white text-xs font-mono px-3 py-2 rounded-lg outline-none transition-colors placeholder-gray-700"
+                      />
+                      <div className="flex gap-2 mt-auto">
+                        <button
+                          onClick={handleAddPlane}
+                          disabled={!newPlaneName.trim()}
+                          className="flex-1 font-mono text-[9px] py-1.5 rounded-lg uppercase tracking-widest transition-all duration-200 disabled:opacity-30"
+                          style={{ background: 'rgba(var(--color-primary),0.15)', color: 'rgb(var(--color-primary))', border: '1px solid rgba(var(--color-primary),0.3)' }}
+                        >Manifest Plane</button>
+                        <button
+                          onClick={() => { setIsAddingPlane(false); setNewPlaneName(''); }}
+                          className="font-mono text-[9px] px-3 py-1.5 rounded-lg border border-gray-800 text-gray-600 hover:text-gray-300 uppercase tracking-widest transition-colors"
+                        >Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => setView('map')} className="font-mono text-[10px] px-4 py-2 rounded-lg border tracking-widest uppercase transition-all duration-300 hover:bg-[rgba(var(--color-primary),0.1)]"
-                  style={{ borderColor: 'rgba(var(--color-primary), 0.2)', color: 'rgb(var(--color-primary))' }}>
-                  Open Map
-                </button>
-                <button onClick={handleExport} className="font-mono text-[10px] px-4 py-2 rounded-lg border border-gray-800 text-gray-500 hover:text-gray-300 tracking-widest uppercase transition-all duration-300">
-                  Export
-                </button>
+
+              {/* Quick-nav row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { icon: '🗺️', title: 'Cartograph', desc: 'Navigate and annotate the active plane map.', target: 'map' },
+                  { icon: '📖', title: 'Hall of Records', desc: 'Chronicle entries for the active plane.', target: 'recordhall' },
+                  { icon: '🔭', title: 'Scry Mode', desc: 'Immersive view — no editing tools.', action: () => { setView('map'); setIsFocusMode(true); } },
+                ].map((card) => (
+                  <button
+                    key={card.title}
+                    onClick={() => card.action ? card.action() : setView(card.target)}
+                    className="home-card text-left p-4 rounded-xl border transition-all duration-300"
+                    style={{
+                      background: 'linear-gradient(145deg, rgba(var(--color-bg-surface),0.6), rgba(var(--color-bg-main),0.85))',
+                      borderColor: 'rgba(var(--color-primary),0.1)',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary),0.35)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary),0.1)'}
+                  >
+                    <div className="text-xl mb-2">{card.icon}</div>
+                    <h3 className="font-serif italic text-[rgb(var(--color-primary))] text-sm tracking-wide mb-1">{card.title}</h3>
+                    <p className="font-mono text-[9px] text-gray-600 leading-relaxed">{card.desc}</p>
+                  </button>
+                ))}
               </div>
+
             </div>
           </div>
         )}
