@@ -3,7 +3,6 @@ import { useTheme } from './ThemeContext';
 import MapComponent from './MapComponent';
 import RecordHall from './RecordHall';
 
-// Helper to extract raw hex to an RGB object for smooth math interpolation
 const hexToRgbObj = (hex) => {
   if (!hex) return { r: 212, g: 175, b: 55 };
   let h = hex.replace('#', '');
@@ -20,11 +19,9 @@ const hexToRgbString = (hex) => {
   return `${obj.r}, ${obj.g}, ${obj.b}`;
 };
 
-// ================= ASTRAL HALO BACKGROUND (Calm & Breathing) =================
+// ================= ASTRAL HALO BACKGROUND =================
 const AstralHaloBackground = ({ activeThemeHex }) => {
   const canvasRef = useRef(null);
-  
-  // Keep track of the current color for smooth fading between themes
   const currentColor = useRef(hexToRgbObj(activeThemeHex));
 
   useEffect(() => {
@@ -41,7 +38,6 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
     };
     window.addEventListener('resize', handleResize);
 
-    // 7 Rings - Highly irregular spacing with proportional offsets to avoid overlap
     const ringDefs = [
       { radiusFactor: 0.10, speed: 0.00012, lineW: 1.5, baseAlpha: 0.20, offXFactor: 0.01, offYFactor: -0.01 },
       { radiusFactor: 0.25, speed: -0.00008, lineW: 0.8, baseAlpha: 0.15, offXFactor: -0.02, offYFactor: 0.03 },
@@ -52,12 +48,12 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
       { radiusFactor: 0.98, speed: 0.00002, lineW: 0.5, baseAlpha: 0.10, offXFactor: 0.02, offYFactor: -0.02 },
     ];
 
-    const rings = ringDefs.map((def) => ({ 
-      ...def, 
-      angle: Math.random() * Math.PI * 2, 
+    const rings = ringDefs.map((def) => ({
+      ...def,
+      angle: Math.random() * Math.PI * 2,
       glow: 0,
       pulseOffset: Math.random() * Math.PI * 2,
-      pulseSpeed: 0.0002 + Math.random() * 0.0003 
+      pulseSpeed: 0.0002 + Math.random() * 0.0003
     }));
 
     let mouse = { x: -9999, y: -9999, smoothX: -9999, smoothY: -9999 };
@@ -69,12 +65,11 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
     const draw = () => {
       ctx.clearRect(0, 0, width, height);
 
-      // Smooth color interpolation for gradual theme fading
       const targetRgb = hexToRgbObj(activeThemeHex);
       currentColor.current.r += (targetRgb.r - currentColor.current.r) * 0.02;
       currentColor.current.g += (targetRgb.g - currentColor.current.g) * 0.02;
       currentColor.current.b += (targetRgb.b - currentColor.current.b) * 0.02;
-      
+
       const rgbStr = `${Math.round(currentColor.current.r)}, ${Math.round(currentColor.current.g)}, ${Math.round(currentColor.current.b)}`;
 
       mouse.smoothX += (mouse.x - mouse.smoothX) * 0.08;
@@ -84,7 +79,6 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
       const cy = height / 2;
       const scale = Math.max(width, height);
 
-      // Gentle Mouse Torch
       if (mouse.smoothX > -1000) {
         const torchGrad = ctx.createRadialGradient(mouse.smoothX, mouse.smoothY, 0, mouse.smoothX, mouse.smoothY, 500);
         torchGrad.addColorStop(0, `rgba(${rgbStr}, 0.06)`);
@@ -96,27 +90,26 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
       rings.forEach((r) => {
         r.angle += r.speed;
         r.pulseOffset += r.pulseSpeed;
-        
-        // Offset center point per ring for mystical asymmetry
+
         const ringCx = cx + (r.offXFactor * scale);
         const ringCy = cy + (r.offYFactor * scale);
         const radiusPx = r.radiusFactor * scale;
 
         const dx = mouse.smoothX - ringCx;
         const dy = mouse.smoothY - ringCy;
-        const distFromCenterToMouse = Math.sqrt(dx*dx + dy*dy);
-        
+        const distFromCenterToMouse = Math.sqrt(dx * dx + dy * dy);
+
         const distToRingEdge = Math.abs(distFromCenterToMouse - radiusPx);
-        const RIPPLE_RADIUS = 200; 
+        const RIPPLE_RADIUS = 200;
         const RIPPLE_THICKNESS = 160;
         const distToRipplePeak = Math.abs(distToRingEdge - RIPPLE_RADIUS);
-        
-        const targetGlow = distToRipplePeak < RIPPLE_THICKNESS 
-          ? Math.pow(1 - (distToRipplePeak / RIPPLE_THICKNESS), 2.5) * 0.8 
+
+        const targetGlow = distToRipplePeak < RIPPLE_THICKNESS
+          ? Math.pow(1 - (distToRipplePeak / RIPPLE_THICKNESS), 2.5) * 0.8
           : 0;
 
         r.glow += (targetGlow - r.glow) * 0.02;
-        const ambientPulse = (Math.sin(r.pulseOffset) * 0.5 + 0.5) * 0.5; 
+        const ambientPulse = (Math.sin(r.pulseOffset) * 0.5 + 0.5) * 0.5;
 
         ctx.save();
         ctx.translate(ringCx, ringCy);
@@ -124,22 +117,25 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
         ctx.beginPath();
         ctx.arc(0, 0, radiusPx, 0, Math.PI * 2);
         ctx.setLineDash([]);
-        
+
         const finalAlpha = r.baseAlpha + (ambientPulse * 0.05) + (r.glow * 0.5);
         ctx.strokeStyle = `rgba(${rgbStr}, ${finalAlpha})`;
         ctx.lineWidth = r.lineW + (r.glow * 1.8);
-        
         ctx.shadowBlur = 8 + (r.glow * 25);
         ctx.shadowColor = `rgba(${rgbStr}, ${0.3 + (r.glow * 0.4)})`;
-        
         ctx.stroke();
         ctx.restore();
       });
       animationFrameId = requestAnimationFrame(draw);
     };
-    
+
     draw();
-    return () => { cancelAnimationFrame(animationFrameId); };
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseleave', onMouseLeave);
+    };
   }, [activeThemeHex]);
 
   return <canvas ref={canvasRef} className="fixed inset-0 w-full h-full pointer-events-none z-0" />;
@@ -149,9 +145,11 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
 function App() {
   const { themeId, setThemeId, allThemes } = useTheme();
   const [view, setView] = useState('home');
-  const [hoveredTab, setHoveredTab] = useState(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
-  const fileInputRef = useRef(null);
+  const [currentPoints, setCurrentPoints] = useState([]);
+
+  // FIX: navigatedRecordId lives here so both Map and RecordHall can share it
+  const [navigatedRecordId, setNavigatedRecordId] = useState(null);
 
   const activeTheme = allThemes?.find(t => t.id === themeId) || { primary: '#d4af37', bgMain: '8, 8, 8', bgSurface: '14, 14, 14' };
 
@@ -164,14 +162,24 @@ function App() {
   const [maps, setMaps] = useState(() => JSON.parse(localStorage.getItem('world_archive_maps')) || [{ id: 'map-prime', name: "PRIME MATERIAL PLANE", imageUrl: null, data: [] }]);
   const [activeMapId, setActiveMapId] = useState(() => localStorage.getItem('world_archive_active_id') || 'map-prime');
   const [newMapName, setNewMapName] = useState("");
-  
+
   useEffect(() => { localStorage.setItem('world_archive_maps', JSON.stringify(maps)); }, [maps]);
-  
-  const currentMap = maps.find(m => m.id === activeMapId) || maps[0];
+
+  const currentMap = maps.find(m => m.id === activeMapId) || maps[0] || { id: 'empty', name: 'VOID', data: [] };
   const mapData = currentMap.data;
-  
-  const setMapData = (updater) => setMaps(prev => prev.map(m => m.id === activeMapId ? { ...m, data: typeof updater === 'function' ? updater(m.data) : updater } : m));
+
+  const setMapData = React.useCallback((updater) => {
+    setMaps(prev =>
+      prev.map(m =>
+        m.id === activeMapId
+          ? { ...m, data: typeof updater === 'function' ? updater(m.data) : updater }
+          : m
+      )
+    );
+  }, [activeMapId]);
+
   const updateMapImage = (newUrl) => setMaps(prev => prev.map(m => m.id === activeMapId ? { ...m, imageUrl: newUrl } : m));
+
   const deleteMap = (idToDelete) => {
     if (window.confirm("Sever this plane from the archive?")) {
       setMaps(prev => prev.filter(m => m.id !== idToDelete));
@@ -185,26 +193,10 @@ function App() {
     document.body.appendChild(a); a.click(); a.remove();
   };
 
-  const handleImport = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const importedMaps = JSON.parse(e.target.result);
-          if (Array.isArray(importedMaps)) { setMaps(importedMaps); setActiveMapId(importedMaps[0]?.id || null); }
-        } catch { alert("Failed to read the Grimoire file."); }
-      };
-      reader.readAsText(file);
-    }
-  };
-
+  // FIX: handleNavigateToRecord is now correctly inside App, not AstralHaloBackground
   const handleNavigateToRecord = (recordId) => {
+    setNavigatedRecordId(recordId);
     setView('recordhall');
-    setTimeout(() => {
-      const el = document.getElementById(`record-card-${recordId}`);
-      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-    }, 400); 
   };
 
   useEffect(() => {
@@ -218,11 +210,11 @@ function App() {
   const viewIndex = tabs.findIndex(t => t.id === view);
 
   return (
-    <div className="min-h-screen text-gray-300 relative transition-colors duration-1000 ease-in-out overflow-hidden" 
-         style={{ backgroundColor: `rgb(${activeTheme.bgMain || '8, 8, 8'})` }}>
-      
+    <div className="min-h-screen text-gray-300 relative transition-colors duration-1000 ease-in-out overflow-hidden"
+      style={{ backgroundColor: `rgb(${activeTheme.bgMain || '8, 8, 8'})` }}>
+
       <AstralHaloBackground activeThemeHex={activeTheme.primary || '#d4af37'} />
-      
+
       <style>{`
         .grain-surface::before {
           content: ''; position: absolute; inset: 0;
@@ -247,10 +239,10 @@ function App() {
         .arcane-scroll::-webkit-scrollbar-thumb { background:rgba(var(--color-primary),0.2); border-radius:3px; }
       `}</style>
 
-      {/* HEADER - Updated to grid-cols-3 for absolute mathematical centering */}
+      {/* HEADER */}
       <header className="relative z-50 backdrop-blur-3xl bg-[rgb(var(--color-bg-surface)_/_0.6)] border-b border-white/5 px-10 py-5 grid grid-cols-3 items-center grain-surface shadow-[0_4px_30px_rgba(0,0,0,0.4)] transition-colors duration-1000">
-        
-        {/* Left Aligned */}
+
+        {/* Left */}
         <div className="flex items-center gap-5 justify-self-start">
           <div className="flex items-center gap-4">
             <div className="relative flex items-center justify-center w-7 h-7 sigil-breathe">
@@ -275,7 +267,7 @@ function App() {
           )}
         </div>
 
-        {/* Center Aligned */}
+        {/* Center */}
         <div className="flex justify-center justify-self-center">
           {!isFocusMode && (
             <nav className="flex items-center gap-2">
@@ -300,7 +292,7 @@ function App() {
           )}
         </div>
 
-        {/* Right Aligned */}
+        {/* Right */}
         <div className="flex items-center justify-end justify-self-end">
           <button onClick={() => setIsFocusMode(!isFocusMode)}
             className="font-mono text-[9px] px-6 py-2.5 tracking-[0.25em] uppercase border border-white/5 text-gray-500 hover:text-[rgb(var(--color-primary))] transition-all duration-1000 rounded-full">
@@ -309,76 +301,48 @@ function App() {
         </div>
       </header>
 
-      {/* MAIN VIEWPORT WITH SLIDING ANIMATION */}
-      <main className="relative z-10 w-full h-[calc(100vh-73px)]">
-        <div className="flex w-[300%] h-full transition-transform duration-[800ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
-             style={{ transform: `translateX(-${(viewIndex * 100) / 3}%)` }}>
-          
-          {/* VIEW 1: SANCTUM (HOME) */}
-          <section className="w-1/3 h-full overflow-y-auto arcane-scroll p-8">
-            <div className="max-w-4xl mx-auto space-y-12 py-12">
-              <div className="text-center space-y-6">
-                <h1 className="text-6xl font-light tracking-[0.15em] uppercase text-transparent bg-clip-text bg-gradient-to-b from-gray-50 to-gray-600 transition-colors duration-1000">Welcome</h1>
-                <h2 className="text-7xl font-serif italic tracking-[0.1em] text-[rgb(var(--color-primary))] transition-colors duration-1000" style={{ textShadow: '0 0 50px rgb(var(--color-primary) / 0.3)' }}>Creator</h2>
-                
-                {/* TOOL GUIDE BOX */}
-                <div className="ethereal-panel p-6 rounded-xl text-left max-w-2xl mx-auto border border-[rgb(var(--color-primary)_/_0.2)] transition-colors duration-1000">
-                  <p className="font-serif italic text-xs text-gray-300 leading-relaxed">
-                    <span className="text-[rgb(var(--color-primary))] transition-colors duration-1000">Sanctum</span> is where you anchor new world planes and manage your exportable realm. 
-                    To begin, forge a <span className="text-[rgb(var(--color-primary))] transition-colors duration-1000">new realm</span> below, inscribe your world and follow the tether. Travel to the <span className="text-[rgb(var(--color-primary))] transition-colors duration-1000">Cartograph</span> to illustrate physical boundaries and sanctuaries, 
-                    then consult the <span className="text-[rgb(var(--color-primary))] transition-colors duration-1000">Hall of Records</span> to bridge your geographies with deep chronicle lore. I wish you the best of luck on your journey, fellow Creator.
-                  </p>
-                </div>
-              </div>
+      {/* MAIN VIEWPORT — FIX: single <main>, correct view === checks, no orphaned JSX */}
+      <main className="flex-1 w-full h-[calc(100vh-80px)] overflow-hidden relative">
 
-              <div className="grid md:grid-cols-2 gap-10">
-                <div className="ethereal-panel grain-surface p-10 rounded-xl space-y-8 transition-colors duration-1000 border border-[rgb(var(--color-primary)_/_0.1)] hover:border-[rgb(var(--color-primary)_/_0.3)]">
-                  <h3 className="font-serif italic text-base flex items-center gap-3 transition-colors duration-1000">
-                    <span className="w-1.5 h-1.5 rotate-45 block bg-[rgb(var(--color-primary))]" /> Forge New Plane
-                  </h3>
-                  <div className="space-y-4">
-                    <input type="text" value={newMapName} onChange={(e) => setNewMapName(e.target.value)} placeholder="Name this realm..." className="w-full bg-black/20 border-b border-white/10 focus:border-[rgb(var(--color-primary))] px-2 py-3 text-sm font-serif italic outline-none transition-all duration-500" />
-                    <button onClick={() => { if(!newMapName.trim()) return; const nm = { id: `map-${Date.now()}`, name: newMapName.toUpperCase(), data: [] }; setMaps([...maps, nm]); setActiveMapId(nm.id); setNewMapName(''); setView('map'); }} className="w-full border border-[rgb(var(--color-primary)_/_0.25)] text-[rgb(var(--color-primary)_/_0.8)] hover:text-[rgb(var(--color-primary))] hover:border-[rgb(var(--color-primary)_/_0.5)] bg-[rgb(var(--color-primary)_/_0.03)] hover:bg-[rgb(var(--color-primary)_/_0.08)] py-4 uppercase font-mono text-[10px] tracking-[0.3em] transition-all duration-500 rounded-sm">Forge World</button>
-                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
-                      <button onClick={handleExport} className="text-gray-500 hover:text-[rgb(var(--color-primary))] transition-colors duration-1000 font-mono text-[9px] uppercase tracking-widest">Export</button>
-                      <button onClick={() => fileInputRef.current?.click()} className="text-gray-500 hover:text-white transition-colors duration-1000 font-mono text-[9px] uppercase tracking-widest">Import</button>
-                      <input type="file" ref={fileInputRef} onChange={handleImport} accept=".json" className="hidden" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3" mt-8>
-                  <span className="font-serif italic text-[13px] text-gray-400 pl-4 border-l border-[rgb(var(--color-primary)_/_0.4)] transition-colors duration-1000">Tethered Realms</span>
-                  <div className="mt-3 space-y-3 max-h-[340px] overflow-y-auto pr-2 arcane-scroll">
-                    {maps.map((m) => {
-                      const isActive = m.id === activeMapId;
-                      return (
-                        <div key={m.id} className={`flex justify-between items-center p-5 border rounded-xl transition-all duration-500 ${isActive ? 'bg-[rgb(var(--color-primary)_/_0.05)] border-[rgb(var(--color-primary)_/_0.3)]' : 'bg-black/20 border-white/5 hover:border-[rgb(var(--color-primary)_/_0.15)]'}`}>
-                          <button onClick={() => { setActiveMapId(m.id); setView('map'); }} className="text-left flex-1 min-w-0">
-                            <span className={`font-serif italic text-[13px] block mb-1.5 truncate transition-colors duration-1000 ${isActive ? 'text-[rgb(var(--color-primary))]' : 'text-gray-400'}`}>{m.name}</span>
-                            <span className="font-mono text-[9px] text-gray-500 uppercase tracking-widest flex items-center gap-2"><span className={`w-1 h-1 rotate-45 transition-colors duration-1000 ${isActive ? 'bg-[rgb(var(--color-primary))]' : 'bg-gray-700'}`} /> {m.data?.length || 0} nodes</span>
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); deleteMap(m.id); }} className="text-gray-600 hover:text-red-400 font-mono text-[9px] px-3 transition-colors duration-500">Sever</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+        {/* VIEW: HOME / SANCTUM */}
+        {view === 'home' && (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-center space-y-4 opacity-30">
+              <p className="font-serif italic text-2xl tracking-widest text-[rgb(var(--color-primary))]">Arcanum</p>
+              <p className="font-mono text-xs tracking-[0.3em] uppercase text-gray-500">Select a plane from the navigation above</p>
             </div>
-          </section>
+          </div>
+        )}
 
-          {/* VIEW 2: CARTOGRAPH */}
-          <section className="w-1/3 h-full overflow-hidden p-8">
-            <MapComponent mapData={mapData} setMapData={setMapData} currentMap={currentMap} updateMapImage={updateMapImage} onNavigateToRecord={handleNavigateToRecord} isFocusMode={isFocusMode} />
-          </section>
+        {/* VIEW: CARTOGRAPH */}
+        {view === 'map' && (
+          <div className="w-full h-full overflow-auto">
+            <MapComponent
+              mapData={mapData}
+              setMapData={setMapData}
+              currentMap={currentMap}
+              updateMapImage={updateMapImage}
+              onNavigateToRecord={handleNavigateToRecord}
+              isFocusMode={isFocusMode}
+            />
+          </div>
+        )}
 
-          {/* VIEW 3: HALL OF RECORDS */}
-          <section className="w-1/3 h-full overflow-y-auto arcane-scroll p-8">
-            <RecordHall mapData={mapData} setMapData={setMapData} isFocusMode={isFocusMode} />
-          </section>
+        {/* VIEW: HALL OF RECORDS — FIX: now passes navigatedRecordId + setNavigatedRecordId */}
+        {view === 'recordhall' && (
+          <div className="w-full h-full overflow-y-auto">
+            <RecordHall
+              mapData={mapData}
+              setMapData={setMapData}
+              isFocusMode={isFocusMode}
+              currentPoints={currentPoints}
+              setCurrentPoints={setCurrentPoints}
+              navigatedRecordId={navigatedRecordId}
+              setNavigatedRecordId={setNavigatedRecordId}
+            />
+          </div>
+        )}
 
-        </div>
       </main>
     </div>
   );

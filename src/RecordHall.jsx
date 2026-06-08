@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
+const RecordHall = ({ 
+  mapData = [], 
+  setMapData, 
+  isFocusMode,
+  currentPoints = [],
+  setCurrentPoints,
+  // ⚡ NEW PROPS: Catches the signal when a user jumps here from a map click
+  navigatedRecordId,
+  setNavigatedRecordId
+}) => {
   const [editingId, setEditingId] = useState(null);
   const [fullscreenRecord, setFullscreenRecord] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -19,6 +28,19 @@ const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
   const [images, setImages] = useState([]);
   const [color, setColor] = useState("#fbbf24");
 
+  // FIXED: Listens for remote navigation from the Map component and automatically opens the Full Grimoire sheet
+  useEffect(() => {
+    if (navigatedRecordId) {
+      const targetEntry = mapData.find(item => String(item.id) === String(navigatedRecordId));
+      if (targetEntry) {
+        setFullscreenRecord(targetEntry);
+      }
+      if (setNavigatedRecordId) {
+        setNavigatedRecordId(null); // Reset the signal so it can be re-triggered later
+      }
+    }
+  }, [navigatedRecordId, mapData, setNavigatedRecordId]);
+
   // Advanced Text Formatting & Auto-Listing Parser Engine
   const renderFormattedText = (text) => {
     if (!text) return "";
@@ -28,14 +50,11 @@ const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
       let isListItem = false;
       let displayLine = line;
       
-      // Auto-detect listing triggers (- or * or • at the start of a line)
       if (line.trim().startsWith('- ') || line.trim().startsWith('* ') || line.trim().startsWith('• ')) {
         isListItem = true;
-        // Strip out the raw bullet symbol to clean the layout text
         displayLine = line.trim().replace(/^([-*•]\s*)/, '');
       }
 
-      // Inline token split matching bold (**) and italics (*)
       const regex = /(\*\*.*?\*\*|\*.*?\*)/g;
       const tokens = displayLine.split(regex);
       
@@ -71,7 +90,7 @@ const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
     return mapData.filter((entry) => {
       const searchTarget = `${entry.name || ''} ${entry.summary || ''} ${entry.characters || ''}`.toLowerCase();
       const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
-      const matchesFilter = activeTypeFilter === 'all' || entry.subdivision === activeTypeFilter;
+      const matchesFilter = activeTypeFilter === 'all' || entry.subdivision === activeTypeFilter || entry.type === activeTypeFilter;
       return matchesSearch && matchesFilter;
     });
   }, [mapData, searchQuery, activeTypeFilter]);
@@ -89,16 +108,37 @@ const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
     if (!name.trim()) return;
 
     if (editingId) {
-      setMapData(mapData.map(entry => entry.id === editingId ? {
-        ...entry, name, subdivision, summary, lore, characters, images, color
-      } : entry));
+      // OVERWRITE LOGIC
+      const updatedEntry = {
+        name, 
+        subdivision, 
+        type: subdivision, 
+        summary, 
+        lore, 
+        characters, 
+        images, 
+        color
+      };
+      setMapData(mapData.map(entry => entry.id === editingId ? { ...entry, ...updatedEntry } : entry));
       setEditingId(null);
     } else {
+      // NEW INSCRIPTION LOGIC (Safely binds canvas vectors)
       const newEntry = {
-        id: Date.now(), name, subdivision, summary, lore, characters, images, color, points: null, type: null
+        id: Date.now(), 
+        name, 
+        subdivision, 
+        type: subdivision, 
+        points: currentPoints.length > 0 ? [...currentPoints] : null, 
+        summary, 
+        lore, 
+        characters, 
+        images, 
+        color
       };
       setMapData([...mapData, newEntry]);
     }
+    
+    if (setCurrentPoints) setCurrentPoints([]);
     resetForm();
     setIsFormOpen(false);
   };
@@ -108,7 +148,7 @@ const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
     setIsFormOpen(true);
     setEditingId(entry.id);
     setName(entry.name);
-    setSubdivision(entry.subdivision || "region");
+    setSubdivision(entry.subdivision || entry.type || "region");
     setSummary(entry.summary || "");
     setLore(entry.lore || "");
     setCharacters(entry.characters || "");
@@ -149,6 +189,7 @@ const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
     setImages([]);
     setColor("#fbbf24");
     setActiveExpandedField(null);
+    if (setCurrentPoints) setCurrentPoints([]); 
   };
 
   return (
@@ -203,6 +244,16 @@ const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
                   <option value="landmark">LANDMARK INTERSECT</option>
                 </select>
               </div>
+            </div>
+
+            {/* Geometry Status Indicator Tool */}
+            <div className="bg-black/40 border border-gray-900 px-3 py-2 rounded font-mono text-[10px] flex justify-between items-center">
+              <span className="text-gray-500">BOUND GEOMETRY VECTOR DATA:</span>
+              {currentPoints.length > 0 ? (
+                <span className="text-emerald-400 font-bold animate-pulse">⚡ READY ({subdivision === 'landmark' ? 'POINT OBJECT' : `${currentPoints.length / 2} NODES CAPTURED`})</span>
+              ) : (
+                <span className="text-amber-500/70">⚠️ NO DRAWING RECORDED (WILL SAVE AS TEXT ONLY)</span>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -332,7 +383,7 @@ const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
                       <h4 className="font-mono text-sm font-bold text-gray-200 tracking-wide uppercase">{entry.name}</h4>
                     </div>
                     <span className="font-mono text-[8px] border border-gray-800 text-gray-500 px-1.5 py-0.5 rounded uppercase tracking-widest">
-                      {entry.subdivision || "region"}
+                      {entry.subdivision || entry.type || "region"}
                     </span>
                   </div>
                   <p className="font-mono text-xs text-gray-400 leading-normal line-clamp-2">{entry.summary || "No description cataloged."}</p>
@@ -358,7 +409,7 @@ const RecordHall = ({ mapData = [], setMapData, isFocusMode }) => {
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: fullscreenRecord.color || '#fbbf24' }} />
-                  <span className="font-mono text-xs text-amber-500 tracking-widest uppercase">SYSTEM_ARCHIVE_LOG // {fullscreenRecord.subdivision || "REGION"}</span>
+                  <span className="font-mono text-xs text-amber-500 tracking-widest uppercase">SYSTEM_ARCHIVE_LOG // {fullscreenRecord.subdivision || fullscreenRecord.type || "REGION"}</span>
                 </div>
                 <h2 className="text-3xl font-light tracking-wide uppercase text-white">{fullscreenRecord.name}</h2>
               </div>

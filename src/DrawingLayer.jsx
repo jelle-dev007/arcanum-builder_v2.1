@@ -13,13 +13,23 @@ const DrawingLayer = ({
   creationType
 }) => {
   const [dragInfo, setDragInfo] = useState(null);
-  const [hoveredRegionId, setHoveredRegionId] = useState(null); // Tracks region highlight state
+  const [hoveredRegionId, setHoveredRegionId] = useState(null);
+
+  // HELPER: Maps raw screen clicks to the absolute 1200x800 map coordinates
+  const getCanvasCoordinates = (e, currentTarget) => {
+    const rect = currentTarget.getBoundingClientRect();
+    const displayX = e.clientX - rect.left;
+    const displayY = e.clientY - rect.top;
+    
+    // Scale display screen space up/down to the 1200x800 viewBox coordinate space
+    const x = (displayX / rect.width) * 1200;
+    const y = (displayY / rect.height) * 800;
+    return { x, y };
+  };
 
   const handleMapClick = (e) => {
     if (!isDrawingMode) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getCanvasCoordinates(e, e.currentTarget);
     
     if (creationType === 'landmark') {
       setCurrentPoints([x, y]);
@@ -61,9 +71,7 @@ const DrawingLayer = ({
 
   const handleSVGMouseMove = (e) => {
     if (!dragInfo) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getCanvasCoordinates(e, e.currentTarget);
 
     const targetEntry = mapData.find(item => item.id === dragInfo.entryId);
     if (!targetEntry || !targetEntry.points) return;
@@ -111,18 +119,25 @@ const DrawingLayer = ({
 
   return (
     <svg 
-      width={width} height={height} 
-      onClick={handleMapClick}
+      viewBox="0 0 1200 800"
+      width="100%" 
+      height="100%"
       onMouseMove={handleSVGMouseMove}
       onMouseUp={handleSVGMouseUp}
       onMouseLeave={handleSVGMouseUp}
       className="absolute top-0 left-0"
       style={{ 
-        pointerEvents: (isDrawingMode || reshapeTargetId || dragInfo) ? 'auto' : 'none', 
+        // FIXED: Always allow interactions to pass through so regions stay clickable
+        pointerEvents: 'auto', 
         zIndex: 50 
       }}
     >
       <defs>
+        {/* LOCALIZED FILTER DEFINITIONS: Prevents hidden cross-reference bugs */}
+        <filter id="hand-drawn-edge" x="-10%" y="-10%" width="120%" height="120%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
         <filter id="sigilGlow">
           <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="rgb(var(--color-primary))" floodOpacity="0.4"/>
         </filter>
@@ -130,17 +145,27 @@ const DrawingLayer = ({
           <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="rgb(var(--color-primary))" floodOpacity="0.6"/>
         </filter>
       </defs>
+
+      {/* 0. INVISIBLE INTERCEPTOR LAYER: Safely captures drawing strokes anywhere across space */}
+      <rect 
+        width={1200} 
+        height={800} 
+        fill="black"
+        fillOpacity={0} 
+        style={{ pointerEvents: isDrawingMode ? 'all' : 'none', cursor: 'crosshair' }}
+        onClick={handleMapClick}
+      />
       
       {/* BACKGROUND VECTOR COSMETIC GRID */}
       <g stroke="rgb(var(--color-primary))" strokeOpacity="0.1" fill="none" strokeWidth={0.7} className="pointer-events-none" filter="url(#sigilGlow)">
         <circle cx={400} cy={400} r={100} />
         <circle cx={400} cy={400} r={200} />
         <circle cx={400} cy={400} r={300} strokeDasharray="10,20" />
-        <line x1={0} y1={400} x2={width} y2={400} />
-        <line x1={400} y1={0} x2={400} y2={height} />
+        <line x1={0} y1={400} x2={1200} y2={400} />
+        <line x1={400} y1={0} x2={400} y2={800} />
       </g>
 
-      {/* 1. TERRITORY REGIONS (Hand-Drawn Filter & Theme Variables) */}
+      {/* 1. TERRITORY REGIONS */}
       {showRegions && mapData.map((entry) => {
         if (!entry.points || entry.type !== 'region') return null;
         const center = getCenterOfPoints(entry.points);
@@ -162,7 +187,7 @@ const DrawingLayer = ({
               style={{ 
                 pointerEvents: isDrawingMode ? 'none' : 'auto', 
                 cursor: 'pointer',
-                transition: 'all 0.4s ease-in-out'
+                transition: 'stroke-width 0.2s ease, fill-opacity 0.2s ease'
               }}
               onMouseEnter={() => setHoveredRegionId(entry.id)}
               onMouseMove={(e) => {
@@ -218,7 +243,7 @@ const DrawingLayer = ({
         );
       })}
 
-      {/* 3. POINT LANDMARKS (Dynamic CSS Variable Shadows) */}
+      {/* 3. POINT LANDMARKS */}
       {showLandmarks && mapData.map((entry) => {
         if (!entry.points || entry.type !== 'landmark') return null;
         const [x, y] = entry.points;
@@ -238,7 +263,6 @@ const DrawingLayer = ({
             onClick={(e) => { e.stopPropagation(); onClickEntry(entry); }}
             onDoubleClick={(e) => { e.stopPropagation(); onDoubleClickEntry(entry); }}
           >
-            {/* Pulsating outer matrix ring */}
             <circle 
               cx={x} cy={y} r={14} 
               fill={uniqueColor}
@@ -246,7 +270,6 @@ const DrawingLayer = ({
               className={reshapeTargetId === entry.id ? "" : "animate-ping"} 
               style={{ transformOrigin: `${x}px ${y}px` }} 
             />
-            {/* Solid core node element */}
             <circle cx={x} cy={y} r={6.5} fill={uniqueColor} stroke="#ffffff" strokeWidth={1.5} />
           </g>
         );
