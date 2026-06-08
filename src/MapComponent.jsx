@@ -242,7 +242,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
           {/* IMAGE CANVAS PLATFORM WRAPPER WITH SCROLL-SAFETY ACCENT */}
           <div className="mt-6 border border-gray-800/80 p-1 bg-black/40 rounded-xl shadow-2xl relative w-full h-[70vh] overflow-auto custom-scrollbar">
             <div className="relative w-[1200px] h-[800px]">
-              <TransformWrapper disabled={isDrawingMode || !!reshapeTargetId} initialScale={1} minScale={0.5} maxScale={4}>
+              <TransformWrapper disabled={isDrawingMode || !!reshapeTargetId} initialScale={1} minScale={1} maxScale={4} limitToBounds={true}>
                 <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
                   <div className="relative w-[1200px] h-[800px]">
                     {currentMap.imageUrl ? (

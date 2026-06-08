@@ -133,6 +133,16 @@ const DrawingLayer = ({
       }}
     >
       <defs>
+        <style>{`
+          @keyframes landmarkCore {
+            0%, 100% { opacity: 0.6; filter: drop-shadow(0 0 3px currentColor); }
+            50%       { opacity: 1;   filter: drop-shadow(0 0 10px currentColor) drop-shadow(0 0 18px currentColor); }
+          }
+          @keyframes landmarkHalo {
+            0%, 100% { opacity: 0.18; transform: scale(1); }
+            50%       { opacity: 0.5;  transform: scale(1.3); }
+          }
+        `}</style>
         {/* LOCALIZED FILTER DEFINITIONS: Prevents hidden cross-reference bugs */}
         <filter id="hand-drawn-edge" x="-10%" y="-10%" width="120%" height="120%">
           <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise" />
@@ -248,6 +258,7 @@ const DrawingLayer = ({
         if (!entry.points || entry.type !== 'landmark') return null;
         const [x, y] = entry.points;
         const uniqueColor = entry.color || 'rgb(var(--color-primary))';
+        const s = 10; // half-size of diamond
 
         return (
           <g 
@@ -255,22 +266,31 @@ const DrawingLayer = ({
             style={{ 
               pointerEvents: isDrawingMode ? 'none' : 'auto', 
               cursor: 'pointer',
-              color: uniqueColor,
-              filter: `drop-shadow(0px 0px 8px currentColor)`
             }} 
             onMouseMove={(e) => !reshapeTargetId && onHoverEntry(e, entry)}
             onMouseLeave={onLeaveEntry}
             onClick={(e) => { e.stopPropagation(); onClickEntry(entry); }}
             onDoubleClick={(e) => { e.stopPropagation(); onDoubleClickEntry(entry); }}
           >
-            <circle 
-              cx={x} cy={y} r={14} 
+            {/* Outer breathing halo diamond */}
+            <polygon
+              points={`${x},${y - s*2.4} ${x + s*2.4},${y} ${x},${y + s*2.4} ${x - s*2.4},${y}`}
               fill={uniqueColor}
-              fillOpacity={0.25}
-              className={reshapeTargetId === entry.id ? "" : "animate-ping"} 
-              style={{ transformOrigin: `${x}px ${y}px` }} 
+              fillOpacity={0}
+              stroke={uniqueColor}
+              strokeWidth={1}
+              style={{
+                animation: 'landmarkHalo 4s ease-in-out infinite',
+                transformOrigin: `${x}px ${y}px`,
+              }}
             />
-            <circle cx={x} cy={y} r={6.5} fill={uniqueColor} stroke="#ffffff" strokeWidth={1.5} />
+            {/* Core diamond */}
+            <polygon
+              points={`${x},${y - s} ${x + s},${y} ${x},${y + s} ${x - s},${y}`}
+              fill={uniqueColor}
+              stroke="none"
+              style={{ animation: 'landmarkCore 4s ease-in-out infinite' }}
+            />
           </g>
         );
       })}
