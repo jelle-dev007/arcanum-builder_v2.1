@@ -138,7 +138,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
   };
 
   // Show all existing records so any can be bound to the new drawing
-  const availableLinkOptions = mapData;
+  const availableLinkOptions = mapData.filter(entry => entry.subdivision !== 'character' && entry.type !== 'character');
 
   return (
     <div className="w-full h-full overflow-auto custom-scrollbar">
