@@ -226,6 +226,7 @@ function App() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [currentPoints, setCurrentPoints] = useState([]);
   const [navigatedRecordId, setNavigatedRecordId] = useState(null);
+  const [navHistory, setNavHistory] = useState([]);
 
   const activeTheme = allThemes?.find(t => t.id === themeId) || {
     primary: '#c9a84c', bgMain: '5, 5, 8', bgSurface: '11, 11, 16'
@@ -367,8 +368,18 @@ function App() {
   };
 
   const handleNavigateToRecord = (recordId) => {
+    setNavHistory(prev => [...prev, { view }]);
     setNavigatedRecordId(recordId);
     setView('recordhall');
+  };
+
+  const handleGoBack = () => {
+    setNavHistory(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      setView(last.view);
+      return prev.slice(0, -1);
+    });
   };
 
   useEffect(() => {
@@ -517,7 +528,7 @@ function App() {
                     return (
                         <button
                             key={tab.id}
-                            onClick={() => setView(tab.id)}
+                            onClick={() => { setView(tab.id); setNavHistory([]); }}
                             className="relative flex flex-col items-center justify-center px-7 py-0 outline-none transition-all duration-500 group"
                             style={{ height: '74px' }}
                         >
@@ -902,16 +913,21 @@ function App() {
                     setCurrentPoints={setCurrentPoints}
                     navigatedRecordId={navigatedRecordId}
                     setNavigatedRecordId={setNavigatedRecordId}
+                    onGoBack={navHistory.length > 0 ? handleGoBack : undefined}
                 />
               </div>
           )}
 
-          {/* VIEW: JOURNAL */}
-          {view === 'journal' && (
-              <div key="journal" className="w-full h-full slide-in-right">
-                <Journal isFocusMode={isFocusMode} />
-              </div>
-          )}
+          {/* VIEW: JOURNAL — always mounted to preserve selected entry state */}
+          <div className="w-full h-full" style={{ display: view === 'journal' ? undefined : 'none' }}>
+            <Journal
+              key={currentMap.id}
+              realmId={currentMap.id}
+              isFocusMode={isFocusMode}
+              mapData={mapData}
+              onNavigateToRecord={handleNavigateToRecord}
+            />
+          </div>
 
         </main>
       </div>
