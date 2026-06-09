@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useTheme } from './ThemeContext';
 import MapComponent from './MapComponent';
 import RecordHall from './RecordHall';
@@ -220,14 +220,121 @@ function App() {
   const [editingPlaneId, setEditingPlaneId]     = useState(null);
   const [editingPlaneName, setEditingPlaneName] = useState('');
   const [importError, setImportError]     = useState('');
-  const [removingIds, setRemovingIds]     = useState(new Set());
-  const importFileRef = useRef(null);
-  const colorStateRef = useRef(null);
-  const animRafRef    = useRef(null);
+  const [deletingIds, setDeletingIds]     = useState(new Set());
+  const [autoSavePath, setAutoSavePath]   = useState(() =>
+    localStorage.getItem('arcanum_autosave_path') || null
+  );
+  const [autoSaveStatus, setAutoSaveStatus] = useState(null); // 'saving' | 'saved' | 'error'
+  const [gridCols, setGridCols]           = useState(2);
+  const importFileRef  = useRef(null);
+  const colorStateRef  = useRef(null);
+  const animRafRef     = useRef(null);
+  const autoSaveTimer  = useRef(null);
+  const autoSaveStatusTimer = useRef(null);
+  const gridRef        = useRef(null);
+  const gridRoRef      = useRef(null);
+  const conjureRef      = useRef(null);
+  const conjureFlipPos  = useRef(null);
+  const cardFlipSnap    = useRef(new Map());
 
   useEffect(() => { localStorage.setItem('world_archive_maps', JSON.stringify(maps)); }, [maps]);
   useEffect(() => { localStorage.setItem('world_archive_active_id', activeMapId); }, [activeMapId]);
   useEffect(() => { if (!localStorage.getItem('arcanum_tutorial_seen')) setShowTutorial(true); }, []);
+
+  useEffect(() => {
+    if (autoSavePath) localStorage.setItem('arcanum_autosave_path', autoSavePath);
+    else localStorage.removeItem('arcanum_autosave_path');
+  }, [autoSavePath]);
+
+  useEffect(() => {
+    if (gridRoRef.current) { gridRoRef.current.disconnect(); gridRoRef.current = null; }
+    const grid = gridRef.current;
+    if (!grid) return;
+    const measure = () => {
+      const w = grid.getBoundingClientRect().width;
+      if (w === 0) return;
+      const cols = Math.max(1, Math.floor((w + 26) / (300 + 26)));
+      setGridCols(cols);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(grid);
+    gridRoRef.current = ro;
+    return () => ro.disconnect();
+  }, [view]);
+
+  useLayoutEffect(() => {
+    const snap = cardFlipSnap.current;
+    if (!snap.size) return;
+
+    const toAnimate = [];
+
+    // Realm cards
+    const grid = gridRef.current;
+    if (grid) {
+      grid.querySelectorAll('[data-mapid]').forEach(el => {
+        const prev = snap.get(el.dataset.mapid);
+        if (!prev) return;
+        const next = el.getBoundingClientRect();
+        const dx = prev.left - next.left;
+        const dy = prev.top - next.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        el.style.animationName = 'none';
+        el.style.transition = 'none';
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+        toAnimate.push(el);
+      });
+    }
+
+    // Conjure card
+    const conjure = conjureRef.current;
+    const prevC = snap.get('__conjure__');
+    if (conjure && prevC) {
+      const next = conjure.getBoundingClientRect();
+      const dx = prevC.left - next.left;
+      const dy = prevC.top - next.top;
+      if (Math.abs(dx) >= 1 || Math.abs(dy) >= 1) {
+        conjure.style.animationName = 'none';
+        conjure.style.transition = 'none';
+        conjure.style.transform = `translate(${dx}px, ${dy}px)`;
+        toAnimate.push(conjure);
+      }
+    }
+
+    cardFlipSnap.current = new Map();
+    conjureFlipPos.current = null;
+    if (!toAnimate.length) return;
+
+    const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toAnimate.forEach(el => {
+          if (!el.isConnected) return;
+          el.style.transition = `transform 0.75s ${EASE}`;
+          el.style.transform = '';
+          el.addEventListener('transitionend', () => {
+            el.style.transition = '';
+          }, { once: true });
+        });
+      });
+    });
+  }, [maps.length]);
+
+  useEffect(() => {
+    if (!autoSavePath || maps.length === 0) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        const { ipcRenderer } = window.require('electron');
+        setAutoSaveStatus('saving');
+        await ipcRenderer.invoke('autosave-write', { path: autoSavePath, data: JSON.stringify(maps, null, 2) });
+        setAutoSaveStatus('saved');
+        if (autoSaveStatusTimer.current) clearTimeout(autoSaveStatusTimer.current);
+        autoSaveStatusTimer.current = setTimeout(() => setAutoSaveStatus(null), 2500);
+      } catch { setAutoSaveStatus('error'); }
+    }, 2000);
+    return () => clearTimeout(autoSaveTimer.current);
+  }, [maps, autoSavePath]);
 
   const currentMap = maps.find(m => m.id === activeMapId) || maps[0] || { id: 'empty', name: 'VOID', data: [] };
   const mapData = currentMap.data;
@@ -272,15 +379,44 @@ function App() {
 
   const deleteMap = (e, idToDelete) => {
     e.stopPropagation();
-    if (!window.confirm("Sever this plane and all its chronicle data from the archive?")) return;
-    localStorage.removeItem(`arcanum_journal_${idToDelete}`);
-    const remaining = maps.filter(m => m.id !== idToDelete);
-    setRemovingIds(prev => new Set([...prev, idToDelete]));
-    setTimeout(() => {
-      setMaps(remaining);
-      setRemovingIds(prev => { const s = new Set(prev); s.delete(idToDelete); return s; });
-      if (activeMapId === idToDelete) setActiveMapId(remaining[0]?.id ?? null);
-    }, 310);
+    if (window.confirm("Sever this plane and all its chronicle and journal data from the archive?")) {
+      localStorage.removeItem(`arcanum_journal_${idToDelete}`);
+      if (activeMapId === idToDelete) {
+        const remaining = maps.filter(m => m.id !== idToDelete);
+        setActiveMapId(remaining[0]?.id || null);
+      }
+      const grid = gridRef.current;
+
+      // Pin a fixed-position clone for the exit animation so the real card
+      // can be removed immediately without waiting for the animation to end.
+      const cardEl = grid?.querySelector(`[data-mapid="${idToDelete}"]`);
+      if (cardEl) {
+        const rect = cardEl.getBoundingClientRect();
+        const clone = cardEl.cloneNode(true);
+        clone.removeAttribute('data-mapid');
+        clone.style.cssText = `position:fixed;top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;height:${rect.height}px;margin:0;z-index:200;pointer-events:none;`;
+        clone.classList.add('realm-card-exit');
+        document.body.appendChild(clone);
+        setTimeout(() => { if (clone.isConnected) clone.remove(); }, 600);
+      }
+
+      // Snapshot remaining cards before the grid reflows.
+      const snap = new Map();
+      if (grid) {
+        grid.querySelectorAll('[data-mapid]').forEach(el => {
+          if (el.dataset.mapid !== idToDelete) {
+            snap.set(el.dataset.mapid, el.getBoundingClientRect());
+          }
+        });
+      }
+      if (conjureRef.current) {
+        snap.set('__conjure__', conjureRef.current.getBoundingClientRect());
+      }
+      cardFlipSnap.current = snap;
+
+      // Remove immediately — FLIP fires in useLayoutEffect right after.
+      setMaps(prev => prev.filter(m => m.id !== idToDelete));
+    }
   };
 
   const handleExport = async () => {
@@ -306,6 +442,14 @@ function App() {
       a.href = url; a.download = 'arcanum_archive.json';
       a.click(); URL.revokeObjectURL(url);
     }
+  };
+
+  const handleSetAutoSavePath = async () => {
+    try {
+      const { ipcRenderer } = window.require('electron');
+      const chosen = await ipcRenderer.invoke('choose-autosave-path');
+      if (chosen) setAutoSavePath(chosen);
+    } catch { /* browser environment — no-op */ }
   };
 
   const handleImportFile = (e) => {
@@ -623,16 +767,16 @@ function App() {
                 }}>
                   <div>
                     <span className="field-label" style={{ display: 'block', marginBottom: 10 }}>REGISTERED PLANES</span>
-                    <span className="font-display" style={{ fontSize: 23, letterSpacing: '.08em', color: 'rgb(var(--color-primary))' }}>
+                    <div className="font-display" style={{ fontSize: 23, letterSpacing: '.08em', color: 'rgb(var(--color-primary))' }}>
                       {maps.length === 1 ? 'One plane' : `${maps.length} planes`} bound to the archive
-                    </span>
-                    {currentMap && maps.length > 0 && (
-                      <div className="font-mono" style={{ fontSize: 10, letterSpacing: '.28em', color: '#6fa8a3', marginTop: 6 }}>
-                        ACTIVE PLANE · {currentMap.name || '—'}
+                    </div>
+                    {currentMap && (
+                      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, letterSpacing: '.28em', color: '#6fa8a3', marginTop: 7 }}>
+                        ACTIVE · {currentMap.name}
                       </div>
                     )}
                   </div>
-                  <div data-tutorial="import-export" style={{ display: 'flex', gap: 14 }}>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                     <input ref={importFileRef} type="file" accept=".json" onChange={handleImportFile} className="hidden"/>
                     <button onClick={() => importFileRef.current?.click()} className="ghost-btn">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -646,6 +790,36 @@ function App() {
                       </svg>
                       EXPORT
                     </button>
+                    {/* Auto-save control */}
+                    {autoSavePath ? (
+                      <div className="flex items-center gap-2" style={{ fontSize: 9, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '.18em' }}>
+                        <span style={{
+                          color: autoSaveStatus === 'saving' ? 'rgba(var(--color-primary-soft), .7)'
+                               : autoSaveStatus === 'error'  ? '#f87171'
+                               : 'rgba(100,180,130,.8)',
+                          transition: 'color 0.4s'
+                        }}>
+                          {autoSaveStatus === 'saving' ? '◌ SAVING…' : autoSaveStatus === 'error' ? '✕ SAVE ERR' : '● AUTO-SAVE ON'}
+                        </span>
+                        <button
+                          onClick={() => setAutoSavePath(null)}
+                          title="Disable auto-save"
+                          className="ghost-btn"
+                          style={{ padding: '2px 6px', fontSize: 8 }}
+                        >
+                          DISABLE
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={handleSetAutoSavePath} className="ghost-btn" title="Save to a file automatically on every change">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                          <polyline points="17 21 17 13 7 13 7 21"/>
+                          <polyline points="7 3 7 8 15 8"/>
+                        </svg>
+                        AUTO-SAVE
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -658,7 +832,7 @@ function App() {
                 )}
 
                 {/* ===== PLANES GRID ===== */}
-                <div data-tutorial="planes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 26, alignItems: 'stretch' }}>
+                <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 26, alignItems: 'stretch' }}>
                   {maps.map((m, idx) => {
                     const isActive = m.id === activeMapId;
                     const entryCount = m.data?.length || 0;
@@ -666,11 +840,12 @@ function App() {
                     return (
                       <div
                         key={m.id}
+                        data-mapid={m.id}
                         onClick={() => !isEditing && handleSelectPlane(m.id)}
                         role="button"
                         tabIndex={0}
                         onKeyDown={e => e.key === 'Enter' && !isEditing && handleSelectPlane(m.id)}
-                        className={`home-card card-arcane group relative text-left transition-all duration-500 overflow-hidden cursor-pointer${removingIds.has(m.id) ? ' home-card-exit' : ''}`}
+                        className={`home-card card-arcane group relative text-left transition-all duration-500 overflow-hidden cursor-pointer${deletingIds.has(m.id) ? ' realm-card-exit' : ''}`}
                         style={{
                           animationDelay: `${idx * 0.06}s`,
                           borderRadius: 0,
@@ -757,13 +932,20 @@ function App() {
                     );
                   })}
 
-                  {/* Conjure new plane */}
+                  {/* Conjure new plane — sits in the grid alongside realm cards */}
                   {!isAddingPlane ? (
                     <button
-                      key={`conjure-${maps.length}`}
+                      ref={conjureRef}
                       onClick={() => setIsAddingPlane(true)}
                       className="home-card newplane-card"
-                      style={{ animationDelay: `${maps.length * 0.06}s` }}
+                      style={{
+                        animationDelay: `${maps.length * 0.06}s`,
+                        ...(maps.length % gridCols === 0 ? {
+                          gridColumn: '1 / -1',
+                          justifySelf: 'center',
+                          width: `calc(${100 / gridCols}% - ${((gridCols - 1) * 26) / gridCols}px)`,
+                        } : {}),
+                      }}
                     >
                       <div className="newplane-ring">
                         <span className="newplane-plus">+</span>
@@ -803,6 +985,7 @@ function App() {
                       </div>
                     </div>
                   )}
+
                 </div>
 
                 {/* ===== RULE ===== */}

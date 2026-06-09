@@ -1,16 +1,20 @@
-# React + Vite
+hello
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+i am not a coder. i made this with AI to help worldbuilders who like to annotate their map and want to have an arguably cool software to use
+here you can:
+- make worlds
+- upload maps
+- write character entries, describe regions, add landmarks
+- journal to write stories or plot concepts
 
-Currently, two official plugins are available:
+for those unfamiliar with any code, like me:
+export/import happens as something called a ".json" file. this just means it stores your info in that file. has nothing to do with sons or people called jason
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+oh and the "SCRY" was once a "focus-mode" but kind of got useless but i kept it there in case i'd have need of it. maybe i'll use it in a future update
 
-## React Compiler
+oh if windows flags it as a virus, you can ignore that. 
+i'm not a publisher and won't pay $80 a year for a license or whatever it is. you're free to ask a coding friend for their opinion and they'll probably tell you if it's that awfully coded, even if it had a virus, it would probably not know what to infect or do.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+hope you enjoy it!
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+-jelle
