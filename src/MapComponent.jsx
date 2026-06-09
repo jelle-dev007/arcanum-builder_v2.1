@@ -1,16 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { toPng } from 'html-to-image';
 import DrawingLayer from './DrawingLayer';
-
-// Reusable bracket corners (same as App.jsx)
-const BracketCorners = ({ size = 14, opacity = 0.7 }) => (
-    <>
-      <span className="absolute top-0 left-0 pointer-events-none" style={{ width: size, height: size, borderTop: `1px solid rgba(var(--color-primary), ${opacity})`, borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
-      <span className="absolute top-0 right-0 pointer-events-none" style={{ width: size, height: size, borderTop: `1px solid rgba(var(--color-primary), ${opacity})`, borderRight: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
-      <span className="absolute bottom-0 left-0 pointer-events-none" style={{ width: size, height: size, borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`, borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
-      <span className="absolute bottom-0 right-0 pointer-events-none" style={{ width: size, height: size, borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`, borderRight: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
-    </>
-);
+import BracketCorners from './BracketCorners';
+import { CANVAS_W, CANVAS_H, DEFAULT_REGION_COLOR, DEFAULT_LANDMARK_COLOR } from './constants';
 
 const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, updateMapImage, isFocusMode }) => {
   const [isDrawingMode, setIsDrawingMode] = useState(false);
@@ -18,6 +11,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
   const [currentPoints, setCurrentPoints] = useState([]);
   const [showRegions, setShowRegions] = useState(true);
   const [showLandmarks, setShowLandmarks] = useState(true);
+  const [inkIntensity, setInkIntensity] = useState(15);
   const [hoveredEntry, setHoveredEntry] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [slideshowIndex, setSlideshowIndex] = useState(0);
@@ -28,8 +22,11 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
   const [reshapeTargetId, setReshapeTargetId] = useState(null);
 
   const mapContainerRef = useRef(null);
+  const mapCanvasRef    = useRef(null);
   const transformRef    = useRef(null);
   const mapUploadRef    = useRef(null);
+  const undoStackRef    = useRef([]);
+  const redoStackRef    = useRef([]);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   // Track container dimensions for fit-scale calculation
@@ -43,10 +40,8 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
     return () => ro.disconnect();
   }, []);
 
-  const CONTENT_W = 1200;
-  const CONTENT_H = 800;
   const fitScale = containerSize.width > 0 && containerSize.height > 0
-    ? Math.min(containerSize.width / CONTENT_W, containerSize.height / CONTENT_H)
+    ? Math.min(containerSize.width / CANVAS_W, containerSize.height / CANVAS_H)
     : 1;
 
   // Sync transform when container is resized
@@ -60,12 +55,26 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
     const handleGlobalKeyDown = (e) => {
       if (e.key === 'Escape') {
         if (reshapeTargetId) setReshapeTargetId(null);
-        if (isDrawingMode) { setIsDrawingMode(false); setCurrentPoints([]); }
+        if (isDrawingMode) exitDrawingMode();
+      }
+      if (isDrawingMode && e.ctrlKey && e.key === 'z') {
+        e.preventDefault();
+        if (undoStackRef.current.length > 0) {
+          redoStackRef.current.push([...currentPoints]);
+          setCurrentPoints(undoStackRef.current.pop());
+        }
+      }
+      if (isDrawingMode && e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+        e.preventDefault();
+        if (redoStackRef.current.length > 0) {
+          undoStackRef.current.push([...currentPoints]);
+          setCurrentPoints(redoStackRef.current.pop());
+        }
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [reshapeTargetId, isDrawingMode]);
+  }, [reshapeTargetId, isDrawingMode, currentPoints]);
 
   useEffect(() => {
     if (!hoveredEntry || !hoveredEntry.images || hoveredEntry.images.length <= 1) {
@@ -85,6 +94,24 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
     }
   }, [isFocusMode]);
 
+  const exitDrawingMode = () => {
+    setIsDrawingMode(false);
+    setCurrentPoints([]);
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+  };
+  const closeSidebar = () => { setSidebarEntry(null); setReshapeTargetId(null); setIsQuickEditing(false); };
+
+  const onAddPoint = (x, y, replace = false) => {
+    undoStackRef.current.push([...currentPoints]);
+    redoStackRef.current = [];
+    if (replace) {
+      setCurrentPoints([x, y]);
+    } else {
+      setCurrentPoints(prev => [...prev, x, y]);
+    }
+  };
+
   const handleFinishDrawing = () => {
     if (creationType !== 'landmark' && currentPoints.length < 4) {
       alert("Incomplete geometric leylines. Plot more anchor points first.");
@@ -94,30 +121,42 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
     setShowLinkModal(true);
   };
 
+  const handleExportPng = async () => {
+    if (!mapCanvasRef.current) return;
+    try {
+      const dataUrl = await toPng(mapCanvasRef.current, { cacheBust: true });
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'arcanum-map.png';
+      a.click();
+    } catch (err) {
+      console.error('PNG export failed', err);
+    }
+  };
+
   const executeBinding = () => {
     if (selectedEntryId === "new") {
       const newEntry = {
         id: Date.now(),
         name: `UNNAMED ${creationType.toUpperCase()}`,
-        subdivision: creationType,
         type: creationType,
         points: [...currentPoints],
         summary: "Drawn from canvas. Click to update profile.",
         lore: "",
         characters: "",
-        color: creationType === 'landmark' ? '#ef4444' : '#c9a84c',
-        images: []
+        color: creationType === 'landmark' ? DEFAULT_LANDMARK_COLOR : DEFAULT_REGION_COLOR,
+        images: [],
+        ...(creationType === 'road' && { lineStyle: 'solid' }),
       };
       setMapData([...mapData, newEntry]);
     } else {
       setMapData(mapData.map(entry =>
           String(entry.id) === String(selectedEntryId)
-              ? { ...entry, points: [...currentPoints], type: creationType, subdivision: creationType }
+              ? { ...entry, points: [...currentPoints], type: creationType }
               : entry
       ));
     }
-    setCurrentPoints([]);
-    setIsDrawingMode(false);
+    exitDrawingMode();
     setShowLinkModal(false);
   };
 
@@ -146,7 +185,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
       setReshapeTargetId(null);
     } else {
       setReshapeTargetId(sidebarEntry.id);
-      setIsDrawingMode(false); setCurrentPoints([]);
+      exitDrawingMode();
     }
   };
 
@@ -155,7 +194,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
       setMapData(mapData.map(entry =>
           String(entry.id) === String(sidebarEntry.id) ? { ...entry, points: null } : entry
       ));
-      setSidebarEntry(null); setReshapeTargetId(null);
+      closeSidebar();
     }
   };
 
@@ -175,78 +214,70 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
               background: 'rgba(0,0,0,0.08)'
             }}
         >
-          {/* GLOBAL CARTOGRAPHY INK FILTERS */}
-          <svg className="absolute w-0 h-0 invisible">
-            <defs>
-              <filter id="hand-drawn-edge" x="-10%" y="-10%" width="120%" height="120%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" xChannelSelector="R" yChannelSelector="G" />
-              </filter>
-            </defs>
-          </svg>
-
           {/* ================= MAP CONSOLE ================= */}
           <div className="flex-1 flex flex-col items-center p-5 relative">
 
             {/* CONTROLS BAR */}
             {!isFocusMode && (
                 <div
-                    className="w-full max-w-4xl p-3 rounded flex flex-wrap justify-between items-center gap-4 z-20 animate-fadeIn mb-2"
+                    data-tutorial="controls-bar"
+                    className="w-full max-w-4xl px-4 py-2.5 rounded flex items-center justify-center gap-3 z-20 animate-fadeIn mb-2"
                     style={{
                       background: 'rgba(var(--color-bg-surface), 0.75)',
                       border: '1px solid rgba(var(--color-primary), 0.1)',
                       backdropFilter: 'blur(12px)',
                     }}
                 >
-                  {/* Visibility toggles */}
-                  <div className="flex gap-5 font-mono text-[9px] tracking-[0.18em] text-gray-500">
-                    <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
-                      <input
-                          type="checkbox" checked={showRegions}
-                          onChange={() => setShowRegions(!showRegions)}
-                          className="rounded bg-black border-gray-800"
-                          style={{ accentColor: 'rgb(var(--color-primary))' }}
-                      />
-                      TERRITORIES
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
-                      <input
-                          type="checkbox" checked={showLandmarks}
-                          onChange={() => setShowLandmarks(!showLandmarks)}
-                          className="rounded bg-black border-gray-800"
-                          style={{ accentColor: 'rgb(var(--color-primary))' }}
-                      />
-                      LANDMARKS & ROUTES
-                    </label>
-                  </div>
+                  {/* Single centred row — visibility | ink style | drawing type + actions | upload */}
+                  <div className="flex items-center gap-3 font-mono text-[9px] tracking-[0.18em] text-gray-500">
 
-                  {/* Drawing controls */}
-                  <div className="flex items-center gap-2">
-                    <select
-                        value={creationType}
-                        onChange={(e) => { setCreationType(e.target.value); setCurrentPoints([]); }}
+                    {/* Visibility toggles */}
+                    <div data-tutorial="visibility-toggles" className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
+                        <input type="checkbox" checked={showRegions} onChange={() => setShowRegions(!showRegions)}
+                            className="rounded bg-black border-gray-800" style={{ accentColor: 'rgb(var(--color-primary))' }} />
+                        TERRITORIES
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
+                        <input type="checkbox" checked={showLandmarks} onChange={() => setShowLandmarks(!showLandmarks)}
+                            className="rounded bg-black border-gray-800" style={{ accentColor: 'rgb(var(--color-primary))' }} />
+                        LANDMARKS & ROUTES
+                      </label>
+                    </div>
+
+                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.15)' }} />
+
+                    {/* Ink style */}
+                    <select data-tutorial="ink-style" value={inkIntensity} onChange={(e) => setInkIntensity(Number(e.target.value))}
+                        className="font-mono text-[10px] tracking-[0.14em] cursor-pointer outline-none"
+                        style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(var(--color-primary), 0.12)', color: 'rgba(var(--color-primary), 0.85)', borderRadius: '2px', padding: '0.375rem 0.5rem', textAlign: 'center', lineHeight: '1', boxSizing: 'border-box' }}>
+                      <option value={15}>Cartographer's Hand</option>
+                      <option value={0}>Straight Lines</option>
+                    </select>
+
+                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.15)' }} />
+
+                    {/* Drawing type */}
+                    <select data-tutorial="drawing-type" value={creationType} onChange={(e) => { setCreationType(e.target.value); setCurrentPoints([]); }}
                         disabled={isDrawingMode || !!reshapeTargetId}
-                        className="input-arcane text-[10px] py-1.5 px-2 w-auto"
-                        style={{ borderRadius: '2px' }}
-                    >
+                        className="font-mono text-[10px] tracking-[0.14em] cursor-pointer outline-none"
+                        style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(var(--color-primary), 0.12)', color: 'rgba(var(--color-primary), 0.85)', borderRadius: '2px', padding: '0.375rem 0.5rem', textAlign: 'center', lineHeight: '1', boxSizing: 'border-box' }}>
                       <option value="region">TERRITORY</option>
                       <option value="landmark">LANDMARK</option>
                       <option value="road">ROUTE</option>
                     </select>
 
+                    {/* Draw / Inscribing toggle */}
                     <button
+                        data-tutorial="draw-btn"
                         onClick={() => { setIsDrawingMode(!isDrawingMode); setCurrentPoints([]); setReshapeTargetId(null); }}
                         disabled={!!reshapeTargetId}
                         className="font-mono text-[9px] px-4 py-1.5 tracking-[0.18em] uppercase border transition-all duration-300"
                         style={{
                           borderRadius: '2px',
-                          background: isDrawingMode
-                              ? 'rgba(var(--color-primary), 0.12)'
-                              : 'rgba(0,0,0,0.4)',
+                          background: isDrawingMode ? 'rgba(var(--color-primary), 0.12)' : 'rgba(0,0,0,0.4)',
                           color: isDrawingMode ? 'rgb(var(--color-primary))' : '#4b5563',
-                          borderColor: isDrawingMode
-                              ? 'rgba(var(--color-primary), 0.5)'
-                              : 'rgba(var(--color-primary), 0.1)',
+                          borderColor: isDrawingMode ? 'rgba(var(--color-primary), 0.5)' : 'rgba(var(--color-primary), 0.1)',
                           boxShadow: isDrawingMode ? '0 0 12px rgba(var(--color-primary), 0.15)' : 'none',
                         }}
                     >
@@ -254,36 +285,44 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                     </button>
 
                     {isDrawingMode && (
-                        <button
-                            onClick={handleFinishDrawing}
-                            className="font-mono text-[9px] px-4 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
-                            style={{
-                              borderRadius: '2px',
-                              background: 'rgba(34, 197, 94, 0.08)',
-                              color: 'rgba(74, 222, 128, 0.85)',
-                              borderColor: 'rgba(74, 222, 128, 0.3)',
-                            }}
-                        >
-                          Seal Ink
-                        </button>
+                        <>
+                          <button onClick={handleFinishDrawing}
+                              className="font-mono text-[9px] px-4 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
+                              style={{ borderRadius: '2px', background: 'rgba(34, 197, 94, 0.08)', color: 'rgba(74, 222, 128, 0.85)', borderColor: 'rgba(74, 222, 128, 0.3)' }}>
+                            Seal Ink
+                          </button>
+                          <button onClick={exitDrawingMode}
+                              className="font-mono text-[9px] px-3 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
+                              style={{ borderRadius: '2px', background: 'rgba(153,27,27,0.08)', color: 'rgba(248, 113, 113, 0.85)', borderColor: 'rgba(248,113,113,0.3)' }}>
+                            ✕ Cancel
+                          </button>
+                        </>
                     )}
 
-                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.12)', margin: '0 2px' }} />
-                    <button
-                        onClick={() => mapUploadRef.current?.click()}
+                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.15)' }} />
+
+                    {/* Upload */}
+                    <button onClick={() => mapUploadRef.current?.click()}
                         className="font-mono text-[9px] px-3 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
-                        style={{
-                          borderRadius: '2px',
-                          background: 'rgba(0,0,0,0.4)',
-                          color: 'rgba(var(--color-primary), 0.5)',
-                          borderColor: 'rgba(var(--color-primary), 0.1)',
-                        }}
+                        style={{ borderRadius: '2px', background: 'rgba(0,0,0,0.4)', color: 'rgba(var(--color-primary), 0.5)', borderColor: 'rgba(var(--color-primary), 0.1)' }}
                         onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.35)'; }}
                         onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.5)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.1)'; }}
-                        title={currentMap.imageUrl ? 'Replace map image' : 'Upload map image'}
-                    >
+                        title={currentMap.imageUrl ? 'Replace map image' : 'Upload map image'}>
                       ↑ {currentMap.imageUrl ? 'Replace Map' : 'Upload Map'}
                     </button>
+
+                    {/* Export PNG */}
+                    <button
+                        data-tutorial="export-btn"
+                        onClick={handleExportPng}
+                        className="font-mono text-[9px] px-3 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
+                        style={{ borderRadius: '2px', background: 'rgba(0,0,0,0.4)', color: 'rgba(var(--color-primary), 0.5)', borderColor: 'rgba(var(--color-primary), 0.1)' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.35)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.5)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.1)'; }}
+                        title="Export map as PNG">
+                      ↓ Export PNG
+                    </button>
+
                   </div>
                 </div>
             )}
@@ -322,6 +361,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
 
             {/* MAP CANVAS */}
             <div
+                data-tutorial="map-canvas"
                 ref={mapContainerRef}
                 className="mt-2 p-px relative w-full"
                 style={{
@@ -349,7 +389,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                   }}
               >
                 <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
-                  <div className="relative w-[1200px] h-[800px]">
+                  <div ref={mapCanvasRef} className="relative w-[1200px] h-[800px]">
                     {/* Hidden file input — triggered by buttons below */}
                     <input
                         ref={mapUploadRef}
@@ -398,12 +438,12 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                     )}
                     <div className="absolute inset-0 z-10">
                       <DrawingLayer
-                          width={1200} height={800}
+                          width={CANVAS_W} height={CANVAS_H}
                           isDrawingMode={isDrawingMode}
                           reshapeTargetId={reshapeTargetId}
                           mapData={mapData} setMapData={setMapData}
                           sidebarEntry={sidebarEntry} setSidebarEntry={setSidebarEntry}
-                          currentPoints={currentPoints} setCurrentPoints={setCurrentPoints}
+                          currentPoints={currentPoints} setCurrentPoints={setCurrentPoints} onAddPoint={onAddPoint}
                           onHoverEntry={(e, entry) => {
                             setTooltipPos({ x: e.clientX + 15, y: e.clientY + 15 });
                             setHoveredEntry(entry);
@@ -413,6 +453,8 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                           onDoubleClickEntry={(entry) => { if (onNavigateToRecord) onNavigateToRecord(entry.id); }}
                           showRegions={showRegions} showLandmarks={showLandmarks}
                           creationType={creationType}
+                          onFinishDrawing={handleFinishDrawing}
+                          inkIntensity={inkIntensity}
                       />
                     </div>
                   </div>
@@ -481,7 +523,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                       <div className="flex justify-between items-start">
                         <span className="field-label">{typeLabel[sidebarEntry.type] || sidebarEntry.type || 'Entity'} Chronicle</span>
                         <button
-                            onClick={() => { setSidebarEntry(null); setReshapeTargetId(null); setIsQuickEditing(false); }}
+                            onClick={closeSidebar}
                             className="font-mono text-[8px] text-gray-600 hover:text-gray-300 uppercase tracking-widest transition-colors"
                         >
                           [ close ]
@@ -497,6 +539,30 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                         {sidebarEntry.name}
                       </h3>
                     </div>
+
+                    {/* Road line style picker */}
+                    {sidebarEntry.type === 'road' && (
+                      <div className="space-y-1.5 pb-2" style={{ borderBottom: '1px solid rgba(var(--color-primary), 0.06)' }}>
+                        <span className="field-label">Line Style</span>
+                        <div className="flex gap-1.5">
+                          {[
+                            { value: 'solid',  label: '─ Solid'  },
+                            { value: 'dashed', label: '╌ Dash'   },
+                            { value: 'dotted', label: '· Dot'    },
+                            { value: 'double', label: '═ Rail'   },
+                          ].map(({ value, label }) => {
+                            const active = (sidebarEntry.lineStyle || 'solid') === value;
+                            return (
+                              <button key={value} onClick={() => handleQuickEditSave('lineStyle', value)}
+                                className="font-mono text-[9px] px-2 py-1 border transition-all duration-150"
+                                style={{ borderRadius: '2px', background: active ? 'rgba(var(--color-primary), 0.12)' : 'rgba(0,0,0,0.3)', color: active ? 'rgb(var(--color-primary))' : 'rgba(var(--color-primary), 0.38)', borderColor: active ? 'rgba(var(--color-primary), 0.35)' : 'rgba(var(--color-primary), 0.1)' }}>
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="space-y-4">
                       {!isQuickEditing ? (

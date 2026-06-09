@@ -422,7 +422,12 @@ body {
 
 .slide-in-right  { animation: slideInFromRight 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .slide-in-left   { animation: slideInFromLeft  0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes cardExit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-10px) scale(0.92); }
+}
 .home-card       { animation: fadeInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.home-card-exit  { animation: cardExit 0.3s cubic-bezier(0.4, 0, 1, 1) forwards !important; pointer-events: none; }
 .animate-fadeIn  { animation: fadeIn 0.35s ease both; }
 .animate-fadeInDown { animation: fadeInDown 0.35s ease both; }
 
@@ -910,9 +915,9 @@ body {
    ============================================================ */
 .orrery-wrap {
   position: fixed;
-  top: -5vh;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   width: min(1400px, 120vw);
   height: min(1400px, 120vw);
   z-index: 1;

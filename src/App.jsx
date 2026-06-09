@@ -3,6 +3,8 @@ import { useTheme } from './ThemeContext';
 import MapComponent from './MapComponent';
 import RecordHall from './RecordHall';
 import Journal from './Journal';
+import BracketCorners from './BracketCorners';
+import TutorialOverlay from './TutorialOverlay';
 
 const hexToRgbObj = (hex) => {
   if (!hex) return { r: 201, g: 168, b: 76 };
@@ -184,41 +186,6 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
   return <canvas ref={canvasRef} className="fixed inset-0 w-full h-full pointer-events-none z-0" />;
 };
 
-// ================= BRACKET CORNER COMPONENT =================
-// The signature etched-corner frame element
-const BracketCorners = ({ size = 14, opacity = 0.7 }) => (
-    <>
-      {/* TL */}
-      <span className="absolute top-0 left-0 pointer-events-none" style={{
-        width: size, height: size,
-        borderTop: `1px solid rgba(var(--color-primary), ${opacity})`,
-        borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`,
-        zIndex: 2
-      }} />
-      {/* TR */}
-      <span className="absolute top-0 right-0 pointer-events-none" style={{
-        width: size, height: size,
-        borderTop: `1px solid rgba(var(--color-primary), ${opacity})`,
-        borderRight: `1px solid rgba(var(--color-primary), ${opacity})`,
-        zIndex: 2
-      }} />
-      {/* BL */}
-      <span className="absolute bottom-0 left-0 pointer-events-none" style={{
-        width: size, height: size,
-        borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`,
-        borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`,
-        zIndex: 2
-      }} />
-      {/* BR */}
-      <span className="absolute bottom-0 right-0 pointer-events-none" style={{
-        width: size, height: size,
-        borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`,
-        borderRight: `1px solid rgba(var(--color-primary), ${opacity})`,
-        zIndex: 2
-      }} />
-    </>
-);
-
 // ================= MAIN APP =================
 function App() {
   const { themeId, setThemeId, allThemes } = useTheme();
@@ -227,6 +194,7 @@ function App() {
   const [currentPoints, setCurrentPoints] = useState([]);
   const [navigatedRecordId, setNavigatedRecordId] = useState(null);
   const [navHistory, setNavHistory] = useState([]);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const activeTheme = allThemes?.find(t => t.id === themeId) || {
     primary: '#c9a84c', bgMain: '5, 5, 8', bgSurface: '11, 11, 16'
@@ -271,6 +239,7 @@ function App() {
 
   useEffect(() => { localStorage.setItem('world_archive_maps', JSON.stringify(maps)); }, [maps]);
   useEffect(() => { localStorage.setItem('world_archive_active_id', activeMapId); }, [activeMapId]);
+  useEffect(() => { if (!localStorage.getItem('arcanum_tutorial_seen')) setShowTutorial(true); }, []);
 
   useEffect(() => {
     if (autoSavePath) localStorage.setItem('arcanum_autosave_path', autoSavePath);
@@ -584,10 +553,10 @@ function App() {
           <div className="orrery-wrap">
             <svg viewBox="0 0 1500 1500" fill="none" stroke={activeTheme.primary} style={{ width: '100%', height: '100%' }}>
               <circle className="orrery-s3" cx="750" cy="750" r="700" strokeOpacity=".05"/>
-              <circle className="orrery-s1" cx="750" cy="750" r="560" strokeOpacity=".08" strokeDasharray="2 14"/>
+              <circle className="orrery-s1" cx="750" cy="750" r="560" strokeOpacity=".08"/>
               <circle className="orrery-s2" cx="750" cy="750" r="430" strokeOpacity=".10"/>
-              <circle className="orrery-s3" cx="750" cy="750" r="430" strokeOpacity=".06" strokeDasharray="1 22"/>
-              <circle className="orrery-s4" cx="750" cy="750" r="300" strokeOpacity=".12" strokeDasharray="3 10"/>
+              <circle className="orrery-s3" cx="750" cy="750" r="430" strokeOpacity=".06"/>
+              <circle className="orrery-s4" cx="750" cy="750" r="300" strokeOpacity=".12"/>
               <circle className="orrery-s1" cx="750" cy="750" r="195" strokeOpacity=".14"/>
               <g className="orrery-s2"><circle cx="750" cy="320" r="4" fill="#6fa8a3" stroke="none" opacity=".7"/></g>
               <g className="orrery-s4"><circle cx="750" cy="450" r="3" fill={activeTheme.primary} stroke="none" opacity=".8"/></g>
@@ -712,8 +681,23 @@ function App() {
             )}
           </div>
 
-          {/* Right — Scry mode toggle */}
-          <div className="flex items-center justify-end justify-self-end">
+          {/* Right — Tutorial + Scry mode toggle */}
+          <div className="flex items-center justify-end justify-self-end gap-3">
+            <button
+                onClick={() => setShowTutorial(true)}
+                title="Open tutorial"
+                className="font-mono tracking-[0.2em] border transition-all duration-300"
+                style={{
+                  fontSize: 11,
+                  padding: '9px 14px',
+                  borderRadius: '2px',
+                  borderColor: 'rgba(var(--color-primary), 0.18)',
+                  color: 'rgba(var(--color-primary), 0.5)',
+                  background: 'rgba(var(--color-primary), 0.04)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.5)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.18)'; }}
+            >?</button>
             <button
                 onClick={() => setIsFocusMode(!isFocusMode)}
                 className="font-mono tracking-[0.3em] uppercase border transition-all duration-500 scry-chamfer"
@@ -925,7 +909,7 @@ function App() {
                               </button>
                               <button
                                 onClick={(e) => deleteMap(e, m.id)}
-                                title={maps.length > 1 ? "Remove plane" : "Reset plane to blank slate"}
+                                title={maps.length > 1 ? "Remove plane" : "Clear this plane"}
                                 className="font-mono text-[14px] transition-colors duration-200"
                                 style={{ color: 'rgba(220, 80, 80, 0.55)' }}
                                 onMouseEnter={e => e.currentTarget.style.color = 'rgba(248, 113, 113, 1)'}
@@ -1111,6 +1095,15 @@ function App() {
           </div>
 
         </main>
+
+      {showTutorial && (
+        <TutorialOverlay
+          currentView={view}
+          onNavigate={(v) => { setView(v); setNavHistory([]); }}
+          onFinish={() => setShowTutorial(false)}
+          isFirstLaunch={!localStorage.getItem('arcanum_tutorial_seen')}
+        />
+      )}
       </div>
   );
 }
