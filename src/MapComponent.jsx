@@ -18,6 +18,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
   const [currentPoints, setCurrentPoints] = useState([]);
   const [showRegions, setShowRegions] = useState(true);
   const [showLandmarks, setShowLandmarks] = useState(true);
+  const [inkIntensity, setInkIntensity] = useState(15);
   const [hoveredEntry, setHoveredEntry] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [slideshowIndex, setSlideshowIndex] = useState(0);
@@ -175,78 +176,66 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
               background: 'rgba(0,0,0,0.08)'
             }}
         >
-          {/* GLOBAL CARTOGRAPHY INK FILTERS */}
-          <svg className="absolute w-0 h-0 invisible">
-            <defs>
-              <filter id="hand-drawn-edge" x="-10%" y="-10%" width="120%" height="120%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" xChannelSelector="R" yChannelSelector="G" />
-              </filter>
-            </defs>
-          </svg>
-
           {/* ================= MAP CONSOLE ================= */}
           <div className="flex-1 flex flex-col items-center p-5 relative">
 
             {/* CONTROLS BAR */}
             {!isFocusMode && (
                 <div
-                    className="w-full max-w-4xl p-3 rounded flex flex-wrap justify-between items-center gap-4 z-20 animate-fadeIn mb-2"
+                    className="w-full max-w-4xl px-4 py-2.5 rounded flex items-center justify-center gap-3 z-20 animate-fadeIn mb-2"
                     style={{
                       background: 'rgba(var(--color-bg-surface), 0.75)',
                       border: '1px solid rgba(var(--color-primary), 0.1)',
                       backdropFilter: 'blur(12px)',
                     }}
                 >
-                  {/* Visibility toggles */}
-                  <div className="flex gap-5 font-mono text-[9px] tracking-[0.18em] text-gray-500">
+                  {/* Single centred row — visibility | ink style | drawing type + actions | upload */}
+                  <div className="flex items-center gap-3 font-mono text-[9px] tracking-[0.18em] text-gray-500">
+
+                    {/* Visibility toggles */}
                     <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
-                      <input
-                          type="checkbox" checked={showRegions}
-                          onChange={() => setShowRegions(!showRegions)}
-                          className="rounded bg-black border-gray-800"
-                          style={{ accentColor: 'rgb(var(--color-primary))' }}
-                      />
+                      <input type="checkbox" checked={showRegions} onChange={() => setShowRegions(!showRegions)}
+                          className="rounded bg-black border-gray-800" style={{ accentColor: 'rgb(var(--color-primary))' }} />
                       TERRITORIES
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
-                      <input
-                          type="checkbox" checked={showLandmarks}
-                          onChange={() => setShowLandmarks(!showLandmarks)}
-                          className="rounded bg-black border-gray-800"
-                          style={{ accentColor: 'rgb(var(--color-primary))' }}
-                      />
+                      <input type="checkbox" checked={showLandmarks} onChange={() => setShowLandmarks(!showLandmarks)}
+                          className="rounded bg-black border-gray-800" style={{ accentColor: 'rgb(var(--color-primary))' }} />
                       LANDMARKS & ROUTES
                     </label>
-                  </div>
 
-                  {/* Drawing controls */}
-                  <div className="flex items-center gap-2">
-                    <select
-                        value={creationType}
-                        onChange={(e) => { setCreationType(e.target.value); setCurrentPoints([]); }}
+                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.15)' }} />
+
+                    {/* Ink style */}
+                    <select value={inkIntensity} onChange={(e) => setInkIntensity(Number(e.target.value))}
+                        className="font-mono text-[10px] tracking-[0.14em] cursor-pointer outline-none"
+                        style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(var(--color-primary), 0.12)', color: 'rgba(var(--color-primary), 0.85)', borderRadius: '2px', padding: '0.375rem 0.5rem', textAlign: 'center', lineHeight: '1', boxSizing: 'border-box' }}>
+                      <option value={15}>Cartographer's Hand</option>
+                      <option value={0}>Straight Lines</option>
+                    </select>
+
+                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.15)' }} />
+
+                    {/* Drawing type */}
+                    <select value={creationType} onChange={(e) => { setCreationType(e.target.value); setCurrentPoints([]); }}
                         disabled={isDrawingMode || !!reshapeTargetId}
-                        className="input-arcane text-[10px] py-1.5 px-2 w-auto"
-                        style={{ borderRadius: '2px' }}
-                    >
+                        className="font-mono text-[10px] tracking-[0.14em] cursor-pointer outline-none"
+                        style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(var(--color-primary), 0.12)', color: 'rgba(var(--color-primary), 0.85)', borderRadius: '2px', padding: '0.375rem 0.5rem', textAlign: 'center', lineHeight: '1', boxSizing: 'border-box' }}>
                       <option value="region">TERRITORY</option>
                       <option value="landmark">LANDMARK</option>
                       <option value="road">ROUTE</option>
                     </select>
 
+                    {/* Draw / Inscribing toggle */}
                     <button
                         onClick={() => { setIsDrawingMode(!isDrawingMode); setCurrentPoints([]); setReshapeTargetId(null); }}
                         disabled={!!reshapeTargetId}
                         className="font-mono text-[9px] px-4 py-1.5 tracking-[0.18em] uppercase border transition-all duration-300"
                         style={{
                           borderRadius: '2px',
-                          background: isDrawingMode
-                              ? 'rgba(var(--color-primary), 0.12)'
-                              : 'rgba(0,0,0,0.4)',
+                          background: isDrawingMode ? 'rgba(var(--color-primary), 0.12)' : 'rgba(0,0,0,0.4)',
                           color: isDrawingMode ? 'rgb(var(--color-primary))' : '#4b5563',
-                          borderColor: isDrawingMode
-                              ? 'rgba(var(--color-primary), 0.5)'
-                              : 'rgba(var(--color-primary), 0.1)',
+                          borderColor: isDrawingMode ? 'rgba(var(--color-primary), 0.5)' : 'rgba(var(--color-primary), 0.1)',
                           boxShadow: isDrawingMode ? '0 0 12px rgba(var(--color-primary), 0.15)' : 'none',
                         }}
                     >
@@ -254,36 +243,25 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                     </button>
 
                     {isDrawingMode && (
-                        <button
-                            onClick={handleFinishDrawing}
+                        <button onClick={handleFinishDrawing}
                             className="font-mono text-[9px] px-4 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
-                            style={{
-                              borderRadius: '2px',
-                              background: 'rgba(34, 197, 94, 0.08)',
-                              color: 'rgba(74, 222, 128, 0.85)',
-                              borderColor: 'rgba(74, 222, 128, 0.3)',
-                            }}
-                        >
+                            style={{ borderRadius: '2px', background: 'rgba(34, 197, 94, 0.08)', color: 'rgba(74, 222, 128, 0.85)', borderColor: 'rgba(74, 222, 128, 0.3)' }}>
                           Seal Ink
                         </button>
                     )}
 
-                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.12)', margin: '0 2px' }} />
-                    <button
-                        onClick={() => mapUploadRef.current?.click()}
+                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.15)' }} />
+
+                    {/* Upload */}
+                    <button onClick={() => mapUploadRef.current?.click()}
                         className="font-mono text-[9px] px-3 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
-                        style={{
-                          borderRadius: '2px',
-                          background: 'rgba(0,0,0,0.4)',
-                          color: 'rgba(var(--color-primary), 0.5)',
-                          borderColor: 'rgba(var(--color-primary), 0.1)',
-                        }}
+                        style={{ borderRadius: '2px', background: 'rgba(0,0,0,0.4)', color: 'rgba(var(--color-primary), 0.5)', borderColor: 'rgba(var(--color-primary), 0.1)' }}
                         onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.35)'; }}
                         onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.5)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.1)'; }}
-                        title={currentMap.imageUrl ? 'Replace map image' : 'Upload map image'}
-                    >
+                        title={currentMap.imageUrl ? 'Replace map image' : 'Upload map image'}>
                       ↑ {currentMap.imageUrl ? 'Replace Map' : 'Upload Map'}
                     </button>
+
                   </div>
                 </div>
             )}
@@ -413,6 +391,8 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                           onDoubleClickEntry={(entry) => { if (onNavigateToRecord) onNavigateToRecord(entry.id); }}
                           showRegions={showRegions} showLandmarks={showLandmarks}
                           creationType={creationType}
+                          onFinishDrawing={handleFinishDrawing}
+                          inkIntensity={inkIntensity}
                       />
                     </div>
                   </div>
