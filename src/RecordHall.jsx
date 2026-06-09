@@ -1,35 +1,42 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom'; // ⚡ NEW: Imports the teleporter to fix scrolling bugs
+import { createPortal } from 'react-dom';
 
-const RecordHall = ({ 
-  mapData = [], 
-  setMapData, 
-  isFocusMode,
-  currentPoints = [],
-  setCurrentPoints,
-  navigatedRecordId,
-  setNavigatedRecordId
-}) => {
+// Shared bracket corners component
+const BracketCorners = ({ size = 14, opacity = 0.7 }) => (
+    <>
+      <span className="absolute top-0 left-0 pointer-events-none" style={{ width: size, height: size, borderTop: `1px solid rgba(var(--color-primary), ${opacity})`, borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
+      <span className="absolute top-0 right-0 pointer-events-none" style={{ width: size, height: size, borderTop: `1px solid rgba(var(--color-primary), ${opacity})`, borderRight: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
+      <span className="absolute bottom-0 left-0 pointer-events-none" style={{ width: size, height: size, borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`, borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
+      <span className="absolute bottom-0 right-0 pointer-events-none" style={{ width: size, height: size, borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`, borderRight: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
+    </>
+);
+
+const RecordHall = ({
+                      mapData = [],
+                      setMapData,
+                      isFocusMode,
+                      currentPoints = [],
+                      setCurrentPoints,
+                      navigatedRecordId,
+                      setNavigatedRecordId
+                    }) => {
   const [editingId, setEditingId] = useState(null);
   const [fullscreenRecord, setFullscreenRecord] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [activeExpandedField, setActiveExpandedField] = useState(null);
 
-  // Search Engine State
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTypeFilter, setActiveTypeFilter] = useState('all');
 
-  // Form Inputs
   const [name, setName] = useState("");
-  const [subdivision, setSubdivision] = useState("region"); 
+  const [subdivision, setSubdivision] = useState("region");
   const [summary, setSummary] = useState("");
   const [lore, setLore] = useState("");
   const [characters, setCharacters] = useState("");
   const [images, setImages] = useState([]);
-  const [color, setColor] = useState("#fbbf24");
-  const [isFolder, setIsFolder] = useState(false); 
+  const [color, setColor] = useState("#c9a84c");
+  const [isFolder, setIsFolder] = useState(false);
 
-  // Hyperlink Tool State
   const [hoveredLinkTarget, setHoveredLinkTarget] = useState(null);
   const [linkTooltipPos, setLinkTooltipPos] = useState({ x: 0, y: 0 });
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -37,8 +44,7 @@ const RecordHall = ({
   const textAreaRef = useRef(null);
   const [slideshowIndex, setSlideshowIndex] = useState(0);
 
-  // COMPENDIUM FOLDER STATE
-  const [folderPath, setFolderPath] = useState([]); 
+  const [folderPath, setFolderPath] = useState([]);
   const [moveTargetId, setMoveTargetId] = useState(null);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
@@ -63,164 +69,137 @@ const RecordHall = ({
 
   useEffect(() => {
     if (!hoveredLinkTarget || !hoveredLinkTarget.images || hoveredLinkTarget.images.length <= 1) {
-      setSlideshowIndex(0);
-      return;
+      setSlideshowIndex(0); return;
     }
     const interval = setInterval(() => {
-      setSlideshowIndex((prevIndex) => (prevIndex + 1) % hoveredLinkTarget.images.length);
+      setSlideshowIndex((prev) => (prev + 1) % hoveredLinkTarget.images.length);
     }, 2500);
     return () => clearInterval(interval);
   }, [hoveredLinkTarget]);
 
-  // ================= GRIMOIRE WEB LINK COMPONENT =================
+  // ================= LORE LINK COMPONENT =================
   const LoreLink = ({ targetId, displayText }) => {
     const targetEntry = mapData.find(e => String(e.id) === String(targetId));
-    
     if (!targetEntry) {
-      return <span className="text-gray-600 line-through decoration-red-900/50 cursor-help" title="Record Erased">{displayText}</span>;
+      return <span className="text-gray-700 line-through cursor-help" title="Record Erased">{displayText}</span>;
     }
-
     return (
-      <span
-        className="cursor-pointer font-bold transition-all duration-300"
-        style={{ 
-          color: targetEntry.color || 'rgb(var(--color-primary))',
-          textDecoration: 'underline',
-          textDecorationStyle: 'dashed',
-          textUnderlineOffset: '3px',
-          textDecorationColor: 'rgba(var(--color-primary), 0.4)'
-        }}
-        onMouseEnter={(e) => {
-          setLinkTooltipPos({ x: e.clientX, y: e.clientY });
-          setHoveredLinkTarget(targetEntry);
-        }}
-        onMouseMove={(e) => setLinkTooltipPos({ x: e.clientX, y: e.clientY })}
-        onMouseLeave={() => setHoveredLinkTarget(null)}
-        onDoubleClick={(e) => {
-          e.stopPropagation();
-          setHoveredLinkTarget(null);
-          setFullscreenRecord(targetEntry);
-        }}
-      >
+        <span
+            className="cursor-pointer font-medium transition-all duration-300"
+            style={{
+              color: targetEntry.color || 'rgb(var(--color-primary))',
+              textDecoration: 'underline',
+              textDecorationStyle: 'dashed',
+              textUnderlineOffset: '3px',
+              textDecorationColor: 'rgba(var(--color-primary), 0.35)'
+            }}
+            onMouseEnter={(e) => { setLinkTooltipPos({ x: e.clientX, y: e.clientY }); setHoveredLinkTarget(targetEntry); }}
+            onMouseMove={(e) => setLinkTooltipPos({ x: e.clientX, y: e.clientY })}
+            onMouseLeave={() => setHoveredLinkTarget(null)}
+            onDoubleClick={(e) => { e.stopPropagation(); setHoveredLinkTarget(null); setFullscreenRecord(targetEntry); }}
+        >
         {displayText}
       </span>
     );
   };
 
-  // ================= TEXT SELECTION & LINK INJECTION =================
+  // ================= LINK INJECTION =================
   const handleInsertLink = (targetId, targetName) => {
     if (!textAreaRef.current) return;
-    
     const start = textAreaRef.current.selectionStart;
     const end = textAreaRef.current.selectionEnd;
     const currentText = activeExpandedField === 'lore' ? lore : characters;
-
     const selectedText = currentText.substring(start, end);
-    const textToWrap = selectedText || targetName; 
-    
+    const textToWrap = selectedText || targetName;
     const newText = currentText.substring(0, start) + `[[${targetId}|${textToWrap}]]` + currentText.substring(end);
-
     if (activeExpandedField === 'lore') setLore(newText);
     else setCharacters(newText);
-
     setIsLinkModalOpen(false);
     setLinkSearchQuery('');
     setTimeout(() => textAreaRef.current?.focus(), 0);
   };
 
-  // ================= TEXT PARSER ENGINE =================
+  // ================= TEXT PARSER =================
   const renderFormattedText = (text) => {
     if (!text) return "";
-    const lines = text.split('\n');
-    
-    return lines.map((line, lineIdx) => {
+    return text.split('\n').map((line, lineIdx) => {
       let isListItem = false;
       let displayLine = line;
-      
       if (line.trim().startsWith('- ') || line.trim().startsWith('* ') || line.trim().startsWith('• ')) {
         isListItem = true;
         displayLine = line.trim().replace(/^([-*•]\s*)/, '');
       }
-
       const regex = /(\[\[.*?\|.*?\]\]|\*\*.*?\*\*|\*.*?\*)/g;
       const tokens = displayLine.split(regex);
-      
       const formattedLine = tokens.map((token, tokenIdx) => {
         if (token.startsWith('[[') && token.endsWith(']]')) {
           const innerContent = token.slice(2, -2);
           const firstPipeIdx = innerContent.indexOf('|');
           if (firstPipeIdx > -1) {
-            const id = innerContent.substring(0, firstPipeIdx);
-            const text = innerContent.substring(firstPipeIdx + 1);
-            return <LoreLink key={tokenIdx} targetId={id} displayText={text} />;
+            return <LoreLink key={tokenIdx} targetId={innerContent.substring(0, firstPipeIdx)} displayText={innerContent.substring(firstPipeIdx + 1)} />;
           }
         }
         if (token.startsWith('**') && token.endsWith('**')) {
-          return <strong key={tokenIdx} className="font-bold text-white shadow-[0_0_10px_rgba(255,255,255,0.1)]">{token.slice(2, -2)}</strong>;
+          return <strong key={tokenIdx} className="font-semibold text-gray-200">{token.slice(2, -2)}</strong>;
         }
         if (token.startsWith('*') && token.endsWith('*')) {
-          return <em key={tokenIdx} className="italic text-amber-300/90">{token.slice(1, -1)}</em>;
+          return <em key={tokenIdx} className="italic" style={{ color: 'rgba(var(--color-primary), 0.75)' }}>{token.slice(1, -1)}</em>;
         }
         return token;
       });
-
       if (isListItem) {
         return (
-          <div key={lineIdx} className="flex items-start gap-2 pl-2 my-1.5 animate-fadeIn">
-            <span className="font-bold select-none mt-[3px] text-[9px] drop-shadow-[0_0_3px_rgb(var(--color-primary))]" style={{ color: 'rgb(var(--color-primary))' }}>✦</span>
-            <span className="flex-1 text-gray-300">{formattedLine}</span>
-          </div>
+            <div key={lineIdx} className="flex items-start gap-2 pl-2 my-1.5">
+              <span className="mt-[3px] text-[8px]" style={{ color: 'rgb(var(--color-primary))' }}>✦</span>
+              <span className="flex-1 text-gray-400">{formattedLine}</span>
+            </div>
         );
       }
-
       return (
-        <React.Fragment key={lineIdx}>
-          {formattedLine}
-          {lineIdx < lines.length - 1 && <br />}
-        </React.Fragment>
+          <React.Fragment key={lineIdx}>
+            {formattedLine}
+            {lineIdx < text.split('\n').length - 1 && <br />}
+          </React.Fragment>
       );
     });
   };
 
-  // ================= FILTER & COMPENDIUM LOGIC =================
+  // ================= FILTER LOGIC =================
   const filteredRecords = useMemo(() => {
     return mapData.filter((entry) => {
       const searchTarget = `${entry.name || ''} ${entry.summary || ''} ${entry.characters || ''}`.toLowerCase();
       const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
       const matchesFilter = activeTypeFilter === 'all' || entry.subdivision === activeTypeFilter || entry.type === activeTypeFilter;
-      
       if (searchQuery) return matchesSearch && matchesFilter;
-
       const matchesParent = (entry.parentId || null) === currentFolderId;
       return matchesParent && matchesFilter;
     });
   }, [mapData, searchQuery, activeTypeFilter, currentFolderId]);
 
+  // ================= CRUD =================
   const handleInscribe = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-
     if (editingId) {
-      const updatedEntry = { name, subdivision, type: subdivision, summary, lore, characters, images, color, isFolder };
-      setMapData(mapData.map(entry => entry.id === editingId ? { ...entry, ...updatedEntry } : entry));
+      setMapData(mapData.map(entry =>
+          entry.id === editingId ? { ...entry, name, subdivision, type: subdivision, summary, lore, characters, images, color, isFolder } : entry
+      ));
       setEditingId(null);
     } else {
-      const newEntry = {
-        id: Date.now(), name, subdivision, type: subdivision, 
-        points: currentPoints.length > 0 ? [...currentPoints] : null, 
+      setMapData([...mapData, {
+        id: Date.now(), name, subdivision, type: subdivision,
+        points: currentPoints.length > 0 ? [...currentPoints] : null,
         summary, lore, characters, images, color, isFolder,
-        parentId: currentFolderId 
-      };
-      setMapData([...mapData, newEntry]);
+        parentId: currentFolderId
+      }]);
     }
-    
     if (setCurrentPoints) setCurrentPoints([]);
     resetForm();
     setIsFormOpen(false);
   };
 
   const handleEditInit = (entry, e) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     setIsFormOpen(true);
     setEditingId(entry.id);
     setName(entry.name || "");
@@ -229,14 +208,14 @@ const RecordHall = ({
     setLore(entry.lore || "");
     setCharacters(entry.characters || "");
     setImages(entry.images || []);
-    setColor(entry.color || "#fbbf24");
+    setColor(entry.color || "#c9a84c");
     setIsFolder(entry.isFolder || false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleErase = (id, e) => {
-    e.stopPropagation(); 
-    if (window.confirm("Permanently erase chronicle trace data from the database files? (Any items inside this folder will also lose their parent).")) {
+    e.stopPropagation();
+    if (window.confirm("Permanently erase this chronicle trace? (Items inside this folder will lose their parent.)")) {
       setMapData(mapData.filter(entry => entry.id !== id));
     }
   };
@@ -248,8 +227,7 @@ const RecordHall = ({
   };
 
   const handleImageAppend = (e) => {
-    const files = Array.from(e.target.files);
-    files.forEach(file => {
+    Array.from(e.target.files).forEach(file => {
       const reader = new FileReader();
       reader.onloadend = () => setImages(prev => [...prev, reader.result]);
       reader.readAsDataURL(file);
@@ -260,559 +238,804 @@ const RecordHall = ({
 
   const resetForm = () => {
     setEditingId(null);
-    setName("");
-    setSubdivision("region");
-    setSummary("");
-    setLore("");
-    setCharacters("");
-    setImages([]);
-    setColor("#fbbf24");
-    setIsFolder(false);
+    setName(""); setSubdivision("region"); setSummary("");
+    setLore(""); setCharacters(""); setImages([]);
+    setColor("#c9a84c"); setIsFolder(false);
     setActiveExpandedField(null);
-    if (setCurrentPoints) setCurrentPoints([]); 
+    if (setCurrentPoints) setCurrentPoints([]);
   };
 
-  // Reusable function to render the grid of cards
+  // ================= CARD GRID =================
   const renderCardGrid = (records) => (
-    <div className="grid md:grid-cols-2 gap-4">
-      {records.map((entry) => (
-        <div 
-          key={entry.id} 
-          onClick={() => {
-            if (entry.isFolder) {
-              setSearchQuery(''); 
-              setFolderPath([...folderPath, entry]);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else {
-              setFullscreenRecord(entry);
-            }
-          }}
-          className="border border-gray-900/60 bg-gray-950/10 hover:bg-gray-950/30 p-5 rounded-xl flex flex-col justify-between gap-4 relative group transition-all duration-300 hover:border-gray-700 cursor-pointer shadow-lg"
-          style={{ borderColor: entry.isFolder ? 'rgba(var(--color-primary), 0.3)' : '' }}
-        >
-          <div className="space-y-3">
-            <div className="flex justify-between items-start">
-              <div className="flex items-center gap-2">
-                {entry.isFolder ? (
-                   <span className="text-sm drop-shadow-[0_0_5px_rgb(var(--color-primary))]" style={{ color: entry.color || 'rgb(var(--color-primary))' }}>📁</span>
-                ) : (
-                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || '#fbbf24' }} />
-                )}
-                <h4 className="font-mono text-sm font-bold text-gray-200 tracking-wide uppercase">{entry.name || "UNNAMED"}</h4>
-              </div>
-              <span className="font-mono text-[8px] border border-gray-800 text-gray-500 px-1.5 py-0.5 rounded uppercase tracking-widest">
+      <div className="grid md:grid-cols-2 gap-3">
+        {records.map((entry) => (
+            <div
+                key={entry.id}
+                onClick={() => {
+                  if (entry.isFolder) {
+                    setSearchQuery('');
+                    setFolderPath([...folderPath, entry]);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  } else {
+                    setFullscreenRecord(entry);
+                  }
+                }}
+                className="card-arcane relative group cursor-pointer p-5 flex flex-col justify-between gap-4 animate-fadeIn"
+                style={{
+                  borderRadius: '4px',
+                  borderColor: entry.isFolder ? 'rgba(var(--color-primary), 0.22)' : undefined,
+                }}
+            >
+              <BracketCorners size={7} opacity={entry.isFolder ? 0.4 : 0.15} />
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2">
+                    {entry.isFolder ? (
+                        <span className="text-sm" style={{ color: entry.color || 'rgb(var(--color-primary))' }}>◈</span>
+                    ) : (
+                        <div
+                            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                            style={{
+                              backgroundColor: entry.color || 'rgb(var(--color-primary))',
+                              boxShadow: `0 0 4px ${entry.color || 'rgb(var(--color-primary))'}`
+                            }}
+                        />
+                    )}
+                    <h4 className="font-display text-[12px] tracking-[0.12em] text-gray-200 uppercase">
+                      {entry.name || "UNNAMED"}
+                    </h4>
+                  </div>
+                  <span className="type-badge">
                 {entry.isFolder ? "COMPENDIUM" : (entry.subdivision || entry.type || "region")}
               </span>
-            </div>
-            <p className="font-mono text-xs text-gray-400 leading-normal line-clamp-2">{entry.summary || "No description cataloged."}</p>
-          </div>
-
-          {!isFocusMode && (
-            <div className="flex justify-end gap-2 border-t border-gray-900/40 pt-3 mt-1 opacity-40 group-hover:opacity-100 transition-opacity">
-              <button 
-                onClick={(e) => { e.stopPropagation(); setMoveTargetId(entry.id); setIsMoveModalOpen(true); }} 
-                className="bg-gray-900/60 hover:bg-blue-500/10 border border-gray-800 hover:border-blue-500/30 text-gray-400 hover:text-blue-400 font-mono text-[9px] px-2.5 py-1 rounded transition-colors uppercase tracking-wider"
-              >Move</button>
-              <button onClick={(e) => handleEditInit(entry, e)} className="bg-gray-900/60 hover:bg-amber-500/10 border border-gray-800 hover:border-amber-500/30 text-gray-400 hover:text-amber-400 font-mono text-[9px] px-2.5 py-1 rounded transition-colors uppercase tracking-wider">Edit</button>
-              <button onClick={(e) => handleErase(entry.id, e)} className="bg-gray-900/60 hover:bg-red-500/10 border border-gray-800 hover:border-red-500/30 text-gray-500 hover:text-red-400 font-mono text-[9px] px-2.5 py-1 rounded transition-colors uppercase tracking-wider">Erase</button>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-
-  return (
-    <div className="space-y-8 py-4 animate-fadeIn relative min-h-screen">
-      
-      {/* GLOBAL HOVER TOOLTIP FOR LORE LINKS (Teleported!) */}
-      {hoveredLinkTarget && !isFocusMode && createPortal(
-        <div 
-          className="fixed bg-black/95 border border-gray-800 p-4 rounded-lg max-w-xs w-64 z-[9999] pointer-events-none shadow-2xl space-y-2 backdrop-blur-md transition-opacity duration-150"
-          style={{ top: linkTooltipPos.y + 15, left: linkTooltipPos.x + 15 }}
-        >
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: hoveredLinkTarget.color || 'rgb(var(--color-primary))' }} />
-            <h4 className="font-mono text-xs font-bold uppercase tracking-wider" style={{ color: hoveredLinkTarget.color || 'rgb(var(--color-primary))', textShadow: '0 0 8px currentColor' }}>
-              {hoveredLinkTarget.name || "UNNAMED"}
-            </h4>
-          </div>
-
-          {hoveredLinkTarget.images && hoveredLinkTarget.images.length > 0 && (
-            <div className="w-full h-28 relative rounded overflow-hidden bg-black/40 border border-gray-900 mt-1 mb-1">
-              <img src={hoveredLinkTarget.images[slideshowIndex]} alt="Archive Presentation" className="w-full h-full object-cover" />
-              {hoveredLinkTarget.images.length > 1 && (
-                <div className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 text-[8px] font-mono text-gray-400 rounded border border-gray-800">
-                  {slideshowIndex + 1} / {hoveredLinkTarget.images.length}
                 </div>
-              )}
-            </div>
-          )}
-
-          <p className="text-gray-400 text-[11px] font-mono leading-normal line-clamp-3">
-            {hoveredLinkTarget.summary || "No parchment lore logged here."}
-          </p>
-          <span className="text-[8px] text-gray-600 font-mono block pt-1 uppercase tracking-widest">[ Double-Click to Open ]</span>
-        </div>,
-        document.body
-      )}
-
-      {/* CONTROL TRIGGER BAR */}
-      {!isFocusMode && !searchQuery && folderPath.length === 0 && (
-        <div className="flex justify-center animate-fadeIn">
-          <button 
-              type="button"
-              onClick={() => {
-                if (isFormOpen) resetForm();
-                setIsFormOpen(!isFormOpen);
-              }}
-              className="border font-mono text-xs font-bold py-3 px-8 rounded-xl tracking-widest uppercase transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
-              style={{
-                backgroundColor: isFormOpen ? 'rgba(153, 27, 27, 0.2)' : 'rgba(var(--color-primary), 0.05)',
-                borderColor: isFormOpen ? 'rgba(153, 27, 27, 0.6)' : 'rgba(var(--color-primary), 0.2)',
-                color: isFormOpen ? '#f87171' : 'rgb(var(--color-primary))'
-              }}
-            >
-              {isFormOpen ? "✕ Close Inscription Panel" : "＋ Begin New Chronicle Entry"}
-          </button>
-        </div>
-      )}
-
-      {/* INSCRIPTION INPUT WRITER PANEL MODAL (Teleported!) */}
-      {!isFocusMode && isFormOpen && createPortal(
-        <div className="fixed inset-0 z-[900] bg-black/80 backdrop-blur-sm overflow-y-auto p-4 flex items-start justify-center" onClick={() => setIsFormOpen(false)}>
-          <div className="border border-gray-900/60 bg-[#070a10] p-6 md:p-8 rounded-2xl max-w-4xl w-full relative animate-fadeInDown shadow-2xl mt-10 mb-10" onClick={(e) => e.stopPropagation()}>
-            <div className="absolute top-0 right-6 font-mono text-[9px] text-gray-700 tracking-widest uppercase py-1">LOG_STREAM: ENTRY_WRITER</div>
-            <h2 className="font-mono text-xs tracking-[0.2em] text-amber-500 uppercase mb-4">
-              {editingId ? "⚡ Overwrite Record Matrix" : "✍️ Inscribe New Chronicle Profile"}
-            </h2>
-
-            <form onSubmit={handleInscribe} className="space-y-4">
-              <div className="bg-black/40 border border-gray-900 p-3 rounded flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <span className="font-mono text-xs text-gray-300 uppercase tracking-wider block">Act as Compendium (Folder)</span>
-                  <span className="font-mono text-[9px] text-gray-600 block">Allows other entries to be nested inside this record.</span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked={isFolder} onChange={() => setIsFolder(!isFolder)} className="sr-only peer" />
-                  <div className="w-11 h-6 bg-gray-800 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-300 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[rgb(var(--color-primary))]"></div>
-                </label>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="md:col-span-2 space-y-1">
-                  <label className="font-mono text-[9px] text-gray-500 tracking-wider block">IDENTITY DESIGNATION</label>
-                  <input 
-                    type="text" value={name} onChange={(e) => setName(e.target.value)} 
-                    onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                    placeholder={isFolder ? "e.g., THE KNIGHTS ARCHIVE..." : "e.g., AVALON CRAG..."} 
-                    className="w-full bg-black border border-gray-900 p-2.5 text-xs font-mono text-white rounded layout-box outline-none focus:border-amber-500/40" 
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="font-mono text-[9px] text-gray-500 tracking-wider block">SUBDIVISION TYPE</label>
-                  <select value={subdivision} onChange={(e) => setSubdivision(e.target.value)} className="w-full bg-black border border-gray-900 p-2.5 text-xs font-mono text-gray-300 rounded layout-box outline-none focus:border-amber-500/40">
-                    <option value="region">REGION</option>
-                    <option value="landmark">LANDMARK</option>
-                    <option value="character">KEY FIGURE (NON-MAP)</option>
-                  </select>
-                </div>
-              </div>
-
-              {subdivision !== 'character' && !isFolder && (
-                <div className="bg-black/40 border border-gray-900 px-3 py-2 rounded font-mono text-[10px] flex justify-between items-center">
-                  <span className="text-gray-500">BOUND GEOMETRY VECTOR DATA:</span>
-                  {currentPoints.length > 0 ? (
-                    <span className="text-emerald-400 font-bold animate-pulse">⚡ READY ({subdivision === 'landmark' ? 'POINT OBJECT' : `${currentPoints.length / 2} NODES CAPTURED`})</span>
-                  ) : (
-                    <span className="text-amber-500/70">⚠️ NO DRAWING RECORDED (WILL SAVE AS TEXT ONLY)</span>
-                  )}
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <label className="font-mono text-[9px] text-gray-500 tracking-wider block">CHRONICLE SYNOPSIS (COMPACT MAPPING LINE)</label>
-                <input 
-                  type="text" value={summary} onChange={(e) => setSummary(e.target.value)} 
-                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                  placeholder="Summary lines..." className="w-full bg-black border border-gray-900 p-2.5 text-xs font-mono text-white rounded layout-box outline-none focus:border-amber-500/40" 
-                />
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center mb-0.5">
-                    <label className="font-mono text-[9px] text-gray-500 tracking-wider block">HISTORICAL ANNAL LORE</label>
-                    <button type="button" onClick={() => setActiveExpandedField('lore')} className="text-[9px] font-mono text-amber-400 opacity-70 hover:opacity-100 transition-opacity uppercase tracking-wider">⛶ Expand Page</button>
-                  </div>
-                  <textarea value={lore} onChange={(e) => setLore(e.target.value)} placeholder="Deep history logs..." className="w-full bg-black border border-gray-900 p-2.5 text-xs font-mono text-white rounded layout-box h-24 resize-none outline-none focus:border-amber-500/40" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center mb-0.5">
-                    <label className="font-mono text-[9px] text-gray-500 tracking-wider block">ASSOCIATED KEY FIGURES / CHARACTERS</label>
-                    <button type="button" onClick={() => setActiveExpandedField('characters')} className="text-[9px] font-mono text-amber-400 opacity-70 hover:opacity-100 transition-opacity uppercase tracking-wider">⛶ Expand Page</button>
-                  </div>
-                  <textarea value={characters} onChange={(e) => setCharacters(e.target.value)} placeholder="Names tracking context..." className="w-full bg-black border border-gray-900 p-2.5 text-xs font-mono text-white rounded layout-box h-24 resize-none outline-none focus:border-amber-500/40" />
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-4 items-center border-t border-gray-900/40 pt-4">
-                <div className="space-y-1 md:col-span-2">
-                  <label className="font-mono text-[9px] text-gray-500 tracking-wider block">LANDSCAPE GRAPHICS ATTACHMENTS</label>
-                  <input type="file" multiple onChange={handleImageAppend} className="text-xs font-mono text-gray-500 file:bg-gray-900 file:border-0 file:text-white file:text-xs file:px-3 file:py-1.5 file:rounded" />
-                </div>
-                <div className="space-y-1">
-                  <label className="font-mono text-[9px] text-gray-500 tracking-wider block">SIGNATURE COLOR EMBLEM</label>
-                  <div className="flex gap-2 items-center">
-                    <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-8 h-8 bg-transparent border-0 cursor-pointer" />
-                    <span className="font-mono text-[10px] text-gray-400 uppercase">{color}</span>
-                  </div>
-                </div>
-              </div>
-
-              {images.length > 0 && (
-                <div className="flex gap-2 flex-wrap pt-2 max-h-24 overflow-y-auto">
-                  {images.map((src, idx) => (
-                    <div key={idx} className="w-16 h-16 border border-gray-900 rounded layout-box relative group overflow-hidden bg-black">
-                      <img src={src} alt="Upload thumb" className="w-full h-full object-cover" />
-                      <button type="button" onClick={() => handleRemoveImage(idx)} className="absolute inset-0 bg-red-950/80 text-white font-mono text-[10px] items-center justify-center hidden group-hover:flex">REMOVE</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 bg-amber-500 hover:bg-amber-600 text-black font-mono text-xs font-bold py-2.5 rounded-lg tracking-widest uppercase transition-colors">
-                  {editingId ? "Execute Overwrite Vector" : "Commit Inscription Entry"}
-                </button>
-                <button type="button" onClick={() => { resetForm(); setIsFormOpen(false); }} className="bg-gray-900 text-gray-400 font-mono text-xs px-4 rounded-lg hover:bg-gray-800 transition-colors">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* SEARCH INDEXER TERMINAL */}
-      {folderPath.length === 0 && (
-        <div className="max-w-5xl mx-auto bg-gray-950/30 border border-gray-900/80 rounded-xl p-4 backdrop-blur-sm">
-          <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-            <div className="relative w-full md:w-2/3">
-              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-gray-600">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="Query matrix by name, summary, or characters..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-black/60 border border-gray-800 text-gray-300 text-xs font-mono tracking-wide rounded-lg pl-10 pr-4 py-2.5 outline-none focus:border-amber-500/60 transition-colors"
-              />
-            </div>
-
-            <div className="flex gap-2 w-full md:w-auto bg-black/40 p-1 rounded-lg border border-gray-800">
-              {['all', 'region', 'landmark', 'character'].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setActiveTypeFilter(type)}
-                  className="px-4 py-1.5 rounded text-[10px] font-mono uppercase tracking-widest transition-all"
-                  style={{
-                    backgroundColor: activeTypeFilter === type ? 'rgba(var(--color-primary), 0.15)' : 'transparent',
-                    borderColor: activeTypeFilter === type ? 'rgba(var(--color-primary), 0.3)' : 'transparent',
-                    color: activeTypeFilter === type ? 'rgb(var(--color-primary))' : '#6b7280'
-                  }}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* STORAGE WALL DISPLAY (ROOT LEVEL OR SEARCH) */}
-      {folderPath.length === 0 && (
-        <div className="space-y-3 max-w-5xl mx-auto">
-          <h3 className="font-mono text-[10px] tracking-widest text-gray-500 uppercase px-1">
-            {searchQuery ? "SEARCH RESULTS" : "ROOT PROFILES COMPENDIUM"} ({filteredRecords.length})
-          </h3>
-          
-          {filteredRecords.length === 0 ? (
-            <div className="text-center py-12 border border-gray-800/50 border-dashed rounded-xl bg-gray-950/20">
-              <span className="font-mono text-gray-600 tracking-widest text-xs uppercase">No traces match current parameters.</span>
-            </div>
-          ) : renderCardGrid(filteredRecords)}
-        </div>
-      )}
-
-      {/* ================= SPLIT SCREEN ACTIVE FOLDER VIEW ================= */}
-      {folderPath.length > 0 && !searchQuery && (
-        <div className="max-w-6xl mx-auto flex border border-gray-800/60 rounded-2xl overflow-hidden bg-black/40 shadow-2xl backdrop-blur-sm min-h-[600px] animate-fadeIn">
-          
-          {/* LEFT PANE: FOLDER INFO */}
-          <div className="w-1/3 border-r border-gray-800/60 bg-gray-950/60 p-8 flex flex-col justify-between">
-            <div className="space-y-6">
-              <button 
-                onClick={() => setFolderPath(folderPath.slice(0, -1))}
-                className="font-mono text-xs text-gray-500 hover:text-white uppercase tracking-widest flex items-center gap-2 mb-8 transition-colors"
-              >
-                <span>←</span> Return to {folderPath.length > 1 ? (folderPath[folderPath.length - 2].name || "Unnamed") : "Root Archive"}
-              </button>
-
-              <div className="space-y-2">
-                <span className="font-mono text-[10px] tracking-widest uppercase block" style={{ color: folderPath[folderPath.length - 1].color || 'rgb(var(--color-primary))' }}>
-                  ACTIVE COMPENDIUM FOLDER
-                </span>
-                <h2 className="text-3xl font-light tracking-wide uppercase text-white leading-tight">
-                  {folderPath[folderPath.length - 1].name || "UNNAMED FOLDER"}
-                </h2>
-              </div>
-              
-              <div className="space-y-2">
-                <span className="font-mono text-[9px] text-gray-600 tracking-widest uppercase block">COMPENDIUM SYNOPSIS</span>
-                <p className="font-mono text-xs text-gray-400 leading-relaxed bg-black/40 border border-gray-900 p-4 rounded-xl">
-                  {folderPath[folderPath.length - 1].summary || "No description cataloged for this folder."}
+                <p className="font-mono text-[10px] text-gray-600 leading-relaxed line-clamp-2">
+                  {entry.summary || "No description cataloged."}
                 </p>
               </div>
 
-              <div className="pt-4">
-                <button 
-                  onClick={() => setFullscreenRecord(folderPath[folderPath.length - 1])}
-                  className="w-full bg-[rgba(var(--color-primary),0.1)] hover:bg-[rgba(var(--color-primary),0.2)] border border-[rgba(var(--color-primary),0.3)] text-[rgb(var(--color-primary))] font-mono text-[10px] py-3 rounded-lg tracking-widest uppercase transition-all shadow-[inset_0_0_10px_rgba(var(--color-primary),0.1)]"
-                >
-                  📖 Expand Folder Grimoire
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-8 mt-auto">
-              <button 
-                onClick={() => {
-                  setIsFormOpen(true);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="w-full border border-gray-800 bg-gray-950 hover:bg-gray-900 hover:border-gray-700 text-gray-400 font-mono text-[10px] py-3 rounded-lg tracking-widest uppercase transition-all"
-              >
-                ＋ Add Entry Inside
-              </button>
-            </div>
-          </div>
-
-          {/* RIGHT PANE: FOLDER CONTENTS */}
-          <div className="w-2/3 p-8 overflow-y-auto relative bg-gradient-to-br from-transparent to-black/60">
-            <div className="mb-6 flex items-center justify-between border-b border-gray-900 pb-4">
-              <h3 className="font-mono text-[10px] tracking-widest text-gray-500 uppercase">
-                CONTENTS OF: {folderPath[folderPath.length - 1].name || "UNNAMED FOLDER"}
-              </h3>
-              <span className="font-mono text-xs text-gray-600 bg-black/40 px-3 py-1 rounded border border-gray-900">
-                {filteredRecords.length} Items
-              </span>
-            </div>
-
-            {filteredRecords.length === 0 ? (
-              <div className="text-center py-20 border border-gray-800/50 border-dashed rounded-xl bg-gray-950/20">
-                <span className="text-3xl opacity-20 block mb-4">📁</span>
-                <span className="font-mono text-gray-600 tracking-widest text-xs uppercase block">This compendium is currently empty.</span>
-                <span className="font-mono text-gray-700 tracking-widest text-[9px] uppercase mt-2 block">Use the button on the left to create an entry here.</span>
-              </div>
-            ) : renderCardGrid(filteredRecords)}
-
-          </div>
-        </div>
-      )}
-
-      {/* OVERLAY SYSTEM PREVIEW SCREEN MODAL (Teleported!) */}
-      {fullscreenRecord && createPortal(
-        <div className="fixed inset-0 bg-black/90 z-[999] backdrop-blur-md flex items-center justify-center p-6 overflow-y-auto" onClick={() => setFullscreenRecord(null)}>
-          <div className="border border-[rgba(var(--color-primary),0.15)] rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto p-8 relative space-y-6 shadow-2xl my-auto" style={{ background: 'linear-gradient(145deg, rgb(var(--color-bg-surface)), rgb(var(--color-bg-main)))' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-start border-b border-[rgba(var(--color-primary),0.1)] pb-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: fullscreenRecord.color || 'rgb(var(--color-primary))' }} />
-                  <span className="font-mono text-xs tracking-widest uppercase" style={{ color: 'rgb(var(--color-primary))' }}>
-                    SYSTEM_ARCHIVE_LOG // {fullscreenRecord.isFolder ? "COMPENDIUM FOLDER" : (fullscreenRecord.subdivision || fullscreenRecord.type || "REGION")}
-                  </span>
-                </div>
-                <h2 className="text-3xl font-light tracking-wide uppercase text-white">{fullscreenRecord.name || "UNNAMED"}</h2>
-              </div>
-              <button onClick={() => setFullscreenRecord(null)} className="font-mono text-xs text-gray-500 hover:text-[rgb(var(--color-primary))] border border-[rgba(var(--color-primary),0.15)] bg-[rgba(var(--color-primary),0.05)] px-3 py-1.5 rounded-lg uppercase tracking-widest transition-colors">[ Close Terminus ]</button>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="md:col-span-1 space-y-5 border-r border-[rgba(var(--color-primary),0.08)] pr-4">
-                <div className="space-y-1.5">
-                  <span className="font-mono text-[9px] text-gray-600 tracking-widest block uppercase">SYNOPSIS EXTRACT</span>
-                  <p className="font-mono text-xs text-gray-300 leading-relaxed bg-[rgba(var(--color-primary),0.04)] border border-[rgba(var(--color-primary),0.08)] p-3 rounded-lg">{fullscreenRecord.summary || "No summary file mapped."}</p>
-                </div>
-                <div className="space-y-1.5">
-                  <span className="font-mono text-[9px] text-gray-600 tracking-widest block uppercase">KEY ATTUNED FIGURES</span>
-                  <div className="font-mono text-xs leading-relaxed bg-[rgba(var(--color-primary),0.05)] border border-[rgba(var(--color-primary),0.1)] p-3 rounded-lg" style={{ color: 'rgb(var(--color-primary))' }}>
-                    {fullscreenRecord.characters ? renderFormattedText(fullscreenRecord.characters) : "No identities tracked."}
-                  </div>
-                </div>
-              </div>
-
-              <div className="md:col-span-2 space-y-6">
-                <div className="space-y-2">
-                  <span className="font-mono text-[9px] text-gray-600 tracking-widest block uppercase">CHRONICLE STORIES COMPREHENSIVE LORE</span>
-                  <div className="font-lore text-sm text-gray-400 leading-loose pl-2 border-l border-[rgba(var(--color-primary),0.3)]">
-                    {fullscreenRecord.lore ? renderFormattedText(fullscreenRecord.lore) : "No narratives mapped."}
-                  </div>
-                </div>
-
-                {fullscreenRecord.images && fullscreenRecord.images.length > 0 && (
-                  <div className="space-y-2 border-t border-[rgba(var(--color-primary),0.08)] pt-4">
-                    <span className="font-mono text-[9px] text-gray-600 tracking-widest block uppercase">IMAGE MANIFEST ASSETS</span>
-                    <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                      {fullscreenRecord.images.map((src, idx) => (
-                        <div key={idx} className="rounded-lg overflow-hidden border border-gray-900 aspect-video">
-                          <img src={src} alt="Chronicle capture piece" className="w-full h-full object-cover" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* FULL SCREEN EXPANDED TEXT EDITOR MODAL (Teleported!) */}
-      {activeExpandedField && createPortal(
-        <div className="fixed inset-0 bg-black/95 z-[1000] backdrop-blur-xl flex flex-col p-6 animate-fadeIn">
-          <div className="max-w-5xl w-full mx-auto flex flex-col h-full space-y-4 pt-4">
-            <div className="flex justify-between items-center border-b border-gray-900 pb-4">
-              <div className="space-y-1">
-                <span className="font-mono text-[10px] text-amber-400 tracking-widest uppercase">MATRIX EXPANSION // DEEP TRANSCRIBER TERMINAL</span>
-                <h2 className="text-xl font-light tracking-wide uppercase text-white">
-                  Focused Editor: {activeExpandedField === 'lore' ? "Historical Annal Lore" : "Associated Key Figures / Characters"}
-                </h2>
-              </div>
-              
-              <div className="flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setIsLinkModalOpen(true)} 
-                  className="font-mono text-xs text-amber-400 border border-amber-500/40 hover:bg-amber-500/10 px-4 py-2.5 rounded-xl uppercase tracking-widest transition-colors"
-                >
-                  🔗 Link Entity
-                </button>
-                <button type="button" onClick={() => setActiveExpandedField(null)} className="font-mono text-xs text-black bg-amber-500 hover:bg-amber-600 px-5 py-2.5 rounded-xl uppercase font-bold tracking-widest transition-colors">
-                  [ Keep & Return ]
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 bg-black/40 border border-gray-900 px-4 py-2 rounded-xl font-mono text-[10px] text-gray-500">
-              <span className="text-amber-400 font-bold uppercase tracking-wider">⚡ Formatting Guide:</span>
-              <div>Use <code className="text-gray-300 bg-gray-900 px-1 py-0.5 rounded">**text**</code> for <strong className="text-white font-bold">Bold</strong></div>
-              <div>Use <code className="text-gray-300 bg-gray-900 px-1 py-0.5 rounded">*text*</code> for <em className="text-amber-300 italic">Italics</em></div>
-              <div>Start lines with <code className="text-gray-300 bg-gray-900 px-1 py-0.5 rounded">- </code>, <code className="text-gray-300 bg-gray-900 px-1 py-0.5 rounded">* </code>, or <code className="text-gray-300 bg-gray-900 px-1 py-0.5 rounded">• </code> to render <span className="text-amber-400 font-bold">✦ Bullet Lists</span></div>
-            </div>
-
-            <div className="flex-1 w-full pb-4 relative">
-              <textarea
-                ref={textAreaRef}
-                value={activeExpandedField === 'lore' ? lore : characters}
-                onChange={(e) => {
-                  if (activeExpandedField === 'lore') setLore(e.target.value);
-                  else setCharacters(e.target.value);
-                }}
-                placeholder={activeExpandedField === 'lore' ? "Begin writing extensive records. Highlight text and click 'Link Entity' to weave connections..." : "Catalog entities. Highlight text and click 'Link Entity' to weave connections..."}
-                className="w-full h-full bg-black/60 border border-gray-800 p-6 text-sm font-mono text-gray-200 rounded-xl outline-none focus:border-amber-500/60 resize-none leading-relaxed shadow-inner"
-              />
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* ================= LINK SELECTION MODAL (Teleported!) ================= */}
-      {isLinkModalOpen && createPortal(
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={() => setIsLinkModalOpen(false)}>
-          <div className="bg-[#0b0f19] border border-gray-800 p-6 rounded-xl max-w-lg w-full space-y-4 shadow-2xl animate-fadeIn" onClick={e => e.stopPropagation()}>
-            <div>
-              <h3 className="font-mono text-sm font-bold text-amber-400 uppercase tracking-wider">🔗 Weave Grimoire Link</h3>
-              <p className="text-gray-400 text-xs font-mono mt-1">Search the archive for the entity you wish to bind to the selected text.</p>
-            </div>
-
-            <input
-              autoFocus type="text" placeholder="Query archive by name..."
-              value={linkSearchQuery} onChange={(e) => setLinkSearchQuery(e.target.value)}
-              className="w-full bg-black border border-gray-800 text-gray-200 text-xs font-mono p-2.5 rounded outline-none focus:border-amber-500/40"
-            />
-
-            <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-              {mapData
-                .filter(e => (e.name || '').toLowerCase().includes(linkSearchQuery.toLowerCase()) && e.id !== editingId)
-                .map(entry => (
-                  <button
-                    key={entry.id} onClick={() => handleInsertLink(entry.id, entry.name)}
-                    className="w-full text-left bg-gray-950/50 hover:bg-[rgba(var(--color-primary),0.1)] border border-gray-900 hover:border-[rgba(var(--color-primary),0.3)] p-3 rounded-lg transition-colors flex justify-between items-center group"
+              {!isFocusMode && (
+                  <div
+                      className="flex justify-end gap-2 pt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      style={{ borderTop: '1px solid rgba(var(--color-primary), 0.06)' }}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || '#fbbf24' }} />
-                      <span className="font-mono text-xs text-gray-300 group-hover:text-white uppercase tracking-wider">{entry.name || "UNNAMED"}</span>
-                    </div>
-                    <span className="font-mono text-[9px] text-gray-600 uppercase tracking-widest">{entry.isFolder ? "FOLDER" : (entry.subdivision || entry.type)}</span>
-                  </button>
-                ))
-              }
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setMoveTargetId(entry.id); setIsMoveModalOpen(true); }}
+                        className="font-mono text-[8px] px-2.5 py-1 uppercase tracking-wider text-gray-600 hover:text-blue-400 transition-colors"
+                        style={{ border: '1px solid rgba(255,255,255,0.05)', borderRadius: '2px' }}
+                    >Move</button>
+                    <button
+                        onClick={(e) => handleEditInit(entry, e)}
+                        className="font-mono text-[8px] px-2.5 py-1 uppercase tracking-wider text-gray-600 transition-colors"
+                        style={{ border: '1px solid rgba(255,255,255,0.05)', borderRadius: '2px', color: undefined }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'rgb(var(--color-primary))'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#4b5563'}
+                    >Edit</button>
+                    <button
+                        onClick={(e) => handleErase(entry.id, e)}
+                        className="font-mono text-[8px] px-2.5 py-1 uppercase tracking-wider text-gray-600 hover:text-red-400 transition-colors"
+                        style={{ border: '1px solid rgba(255,255,255,0.05)', borderRadius: '2px' }}
+                    >Erase</button>
+                  </div>
+              )}
             </div>
+        ))}
+      </div>
+  );
 
-            <button onClick={() => setIsLinkModalOpen(false)} className="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 font-mono text-xs py-2 rounded uppercase transition-colors mt-2">
-              Cancel Binding
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
+  return (
+      <div className="space-y-8 py-6 px-6 animate-fadeIn relative min-h-screen">
 
-      {/* ================= MOVE ENTRY MODAL (Teleported!) ================= */}
-      {isMoveModalOpen && createPortal(
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[2000] flex items-center justify-center p-4" onClick={() => { setIsMoveModalOpen(false); setMoveTargetId(null); }}>
-          <div className="bg-[#0b0f19] border border-gray-800 p-6 rounded-xl max-w-lg w-full space-y-4 shadow-2xl animate-fadeInDown" onClick={(e) => e.stopPropagation()}>
-            <div>
-              <h3 className="font-mono text-sm font-bold text-blue-400 uppercase tracking-wider">📦 Relocate Matrix Entry</h3>
-              <p className="text-gray-400 text-xs font-mono mt-1">Select a new Compendium Folder to house this trace.</p>
-            </div>
+        {/* GLOBAL HOVER TOOLTIP */}
+        {hoveredLinkTarget && !isFocusMode && createPortal(
+            <div
+                className="fixed tooltip-arcane p-4 max-w-xs w-60 z-[9999] pointer-events-none space-y-2"
+                style={{ top: linkTooltipPos.y + 15, left: linkTooltipPos.x + 15, borderRadius: '3px' }}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                     style={{ backgroundColor: hoveredLinkTarget.color || 'rgb(var(--color-primary))' }} />
+                <h4
+                    className="font-display text-[11px] tracking-[0.12em] uppercase"
+                    style={{ color: hoveredLinkTarget.color || 'rgb(var(--color-primary))' }}
+                >
+                  {hoveredLinkTarget.name || "UNNAMED"}
+                </h4>
+              </div>
+              {hoveredLinkTarget.images && hoveredLinkTarget.images.length > 0 && (
+                  <div className="w-full h-24 rounded overflow-hidden bg-black/40 mt-1 mb-1"
+                       style={{ border: '1px solid rgba(var(--color-primary), 0.08)' }}>
+                    <img src={hoveredLinkTarget.images[slideshowIndex]} alt="Ref" className="w-full h-full object-cover" />
+                  </div>
+              )}
+              <p className="font-mono text-[10px] text-gray-500 leading-relaxed line-clamp-3">
+                {hoveredLinkTarget.summary || "No lore recorded."}
+              </p>
+              <span className="font-mono text-[7px] text-gray-700 block pt-1 uppercase tracking-widest">◈ Double-click to open</span>
+            </div>,
+            document.body
+        )}
 
-            <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar mt-4">
+        {/* NEW ENTRY BUTTON */}
+        {!isFocusMode && !searchQuery && folderPath.length === 0 && (
+            <div className="flex justify-center animate-fadeIn">
               <button
-                onClick={() => handleMoveEntry(null)}
-                className="w-full text-left bg-gray-950/80 hover:bg-blue-900/20 border border-gray-900 hover:border-blue-900/50 p-3 rounded-lg transition-colors flex items-center gap-3 group"
+                  type="button"
+                  onClick={() => { if (isFormOpen) resetForm(); setIsFormOpen(!isFormOpen); }}
+                  className="relative font-mono text-[10px] py-3 px-8 tracking-[0.22em] uppercase border transition-all duration-300"
+                  style={{
+                    borderRadius: '3px',
+                    background: isFormOpen ? 'rgba(153,27,27,0.08)' : 'rgba(var(--color-primary), 0.04)',
+                    borderColor: isFormOpen ? 'rgba(153,27,27,0.4)' : 'rgba(var(--color-primary), 0.18)',
+                    color: isFormOpen ? '#f87171' : 'rgb(var(--color-primary))',
+                    boxShadow: isFormOpen ? 'none' : '0 0 16px rgba(var(--color-primary), 0.06)',
+                  }}
               >
-                <span className="text-sm">🌐</span>
-                <span className="font-mono text-xs text-gray-300 group-hover:text-white uppercase tracking-wider">Root Archive Wall (Main Level)</span>
+                <BracketCorners size={6} opacity={isFormOpen ? 0.3 : 0.5} />
+                {isFormOpen ? "✕ Close Inscription Panel" : "＋ Begin New Chronicle Entry"}
               </button>
-              
-              {mapData
-                .filter(e => e.isFolder && e.id !== moveTargetId)
-                .map(folder => (
-                  <button
-                    key={folder.id} onClick={() => handleMoveEntry(folder.id)}
-                    className="w-full text-left bg-gray-950/50 hover:bg-blue-900/20 border border-gray-900 hover:border-blue-900/50 p-3 rounded-lg transition-colors flex items-center gap-3 group"
-                  >
-                    <span className="text-sm">📁</span>
-                    <span className="font-mono text-xs text-gray-300 group-hover:text-white uppercase tracking-wider">{folder.name || "UNNAMED FOLDER"}</span>
-                  </button>
-                ))
-              }
             </div>
+        )}
 
-            <button onClick={() => { setIsMoveModalOpen(false); setMoveTargetId(null); }} className="w-full bg-gray-900 hover:bg-gray-800 text-gray-400 font-mono text-xs py-2 rounded uppercase transition-colors mt-2">
-              Cancel Relocation
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
+        {/* INSCRIPTION FORM MODAL */}
+        {!isFocusMode && isFormOpen && createPortal(
+            <div
+                className="fixed inset-0 z-[900] overflow-y-auto p-4 flex items-start justify-center"
+                style={{ background: 'rgba(2,2,5,0.85)', backdropFilter: 'blur(8px)' }}
+                onClick={() => setIsFormOpen(false)}
+            >
+              <div
+                  className="modal-panel p-6 md:p-8 max-w-4xl w-full relative animate-fadeInDown mt-10 mb-10"
+                  style={{ borderRadius: '4px' }}
+                  onClick={(e) => e.stopPropagation()}
+              >
+                <BracketCorners size={12} opacity={0.4} />
 
-    </div>
+                <div className="absolute top-4 right-6 font-mono text-[8px] text-gray-800 tracking-widest uppercase">
+                  inscription_stream.active
+                </div>
+
+                <div className="mb-5">
+              <span className="field-label" style={{ color: 'rgba(var(--color-primary), 0.7)' }}>
+                {editingId ? "Overwrite Record" : "Inscribe Chronicle Profile"}
+              </span>
+                  <h2 className="font-display text-base tracking-[0.18em] mt-1" style={{ color: 'rgb(var(--color-primary))' }}>
+                    {editingId ? "Edit Entry" : "New Chronicle Entry"}
+                  </h2>
+                </div>
+
+                <form onSubmit={handleInscribe} className="space-y-4">
+                  {/* Folder toggle */}
+                  <div
+                      className="flex items-center justify-between px-4 py-3 rounded"
+                      style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(var(--color-primary), 0.08)' }}
+                  >
+                    <div>
+                      <span className="font-mono text-[11px] text-gray-300 uppercase tracking-wider block">Act as Compendium Folder</span>
+                      <span className="font-mono text-[9px] text-gray-600 block">Nest other entries inside this record.</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" checked={isFolder} onChange={() => setIsFolder(!isFolder)} className="sr-only peer" />
+                      <div
+                          className="w-10 h-5 rounded-full peer after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"
+                          style={{
+                            background: isFolder ? 'rgba(var(--color-primary), 0.7)' : 'rgba(30,30,35,1)',
+                            border: '1px solid rgba(var(--color-primary), 0.2)',
+                            position: 'relative',
+                          }}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="field-label">Identity Designation</label>
+                      <input
+                          type="text" value={name} onChange={(e) => setName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                          placeholder={isFolder ? "e.g., THE KNIGHTS ARCHIVE..." : "e.g., AVALON CRAG..."}
+                          className="input-arcane"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="field-label">Subdivision Type</label>
+                      <select value={subdivision} onChange={(e) => setSubdivision(e.target.value)} className="input-arcane">
+                        <option value="region">REGION</option>
+                        <option value="landmark">LANDMARK</option>
+                        <option value="character">KEY FIGURE</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {subdivision !== 'character' && !isFolder && (
+                      <div
+                          className="flex justify-between items-center px-3 py-2 rounded font-mono text-[9px]"
+                          style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(var(--color-primary), 0.07)' }}
+                      >
+                        <span className="text-gray-600 uppercase tracking-widest">Bound Geometry</span>
+                        {currentPoints.length > 0 ? (
+                            <span className="text-emerald-500 font-medium animate-pulse">
+                      ⚡ Ready — {subdivision === 'landmark' ? 'Point Object' : `${currentPoints.length / 2} nodes`}
+                    </span>
+                        ) : (
+                            <span style={{ color: 'rgba(var(--color-primary), 0.45)' }}>
+                      No drawing recorded
+                    </span>
+                        )}
+                      </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="field-label">Chronicle Synopsis</label>
+                    <input
+                        type="text" value={summary} onChange={(e) => setSummary(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                        placeholder="Summary lines..."
+                        className="input-arcane"
+                    />
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <label className="field-label">Historical Lore</label>
+                        <button type="button" onClick={() => setActiveExpandedField('lore')}
+                                className="font-mono text-[8px] uppercase tracking-wider transition-opacity hover:opacity-100 opacity-60"
+                                style={{ color: 'rgb(var(--color-primary))' }}
+                        >
+                          ⛶ Expand
+                        </button>
+                      </div>
+                      <textarea
+                          value={lore} onChange={(e) => setLore(e.target.value)}
+                          placeholder="Deep history logs..."
+                          className="input-arcane h-24 resize-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <label className="field-label">Key Figures / Characters</label>
+                        <button type="button" onClick={() => setActiveExpandedField('characters')}
+                                className="font-mono text-[8px] uppercase tracking-wider transition-opacity hover:opacity-100 opacity-60"
+                                style={{ color: 'rgb(var(--color-primary))' }}
+                        >
+                          ⛶ Expand
+                        </button>
+                      </div>
+                      <textarea
+                          value={characters} onChange={(e) => setCharacters(e.target.value)}
+                          placeholder="Names and context..."
+                          className="input-arcane h-24 resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-4 items-center pt-3"
+                       style={{ borderTop: '1px solid rgba(var(--color-primary), 0.07)' }}>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="field-label">Landscape Attachments</label>
+                      <input
+                          type="file" multiple onChange={handleImageAppend}
+                          className="font-mono text-[10px] text-gray-600 file:bg-black file:border file:border-gray-800 file:text-gray-300 file:text-[10px] file:px-3 file:py-1.5 file:rounded-sm file:cursor-pointer"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="field-label">Signature Color</label>
+                      <div className="flex gap-2 items-center">
+                        <input type="color" value={color} onChange={(e) => setColor(e.target.value)}
+                               className="w-7 h-7 bg-transparent border-0 cursor-pointer" />
+                        <span className="font-mono text-[9px] text-gray-500 uppercase">{color}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {images.length > 0 && (
+                      <div className="flex gap-2 flex-wrap pt-2 max-h-24 overflow-y-auto">
+                        {images.map((src, idx) => (
+                            <div key={idx}
+                                 className="w-14 h-14 relative group overflow-hidden bg-black"
+                                 style={{ borderRadius: '2px', border: '1px solid rgba(var(--color-primary), 0.08)' }}
+                            >
+                              <img src={src} alt="Thumb" className="w-full h-full object-cover" />
+                              <button type="button" onClick={() => handleRemoveImage(idx)}
+                                      className="absolute inset-0 bg-red-950/90 text-white font-mono text-[8px] items-center justify-center hidden group-hover:flex uppercase">
+                                Remove
+                              </button>
+                            </div>
+                        ))}
+                      </div>
+                  )}
+
+                  <div className="flex gap-2 pt-3">
+                    <button type="submit" className="btn-primary flex-1">
+                      {editingId ? "Execute Overwrite" : "Commit Inscription"}
+                    </button>
+                    <button type="button" onClick={() => { resetForm(); setIsFormOpen(false); }} className="btn-ghost px-5">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>,
+            document.body
+        )}
+
+        {/* SEARCH + FILTER BAR */}
+        {folderPath.length === 0 && (
+            <div
+                className="max-w-5xl mx-auto p-4 rounded animate-fadeIn"
+                style={{
+                  background: 'rgba(var(--color-bg-surface), 0.4)',
+                  border: '1px solid rgba(var(--color-primary), 0.08)',
+                  backdropFilter: 'blur(8px)',
+                  borderRadius: '4px',
+                }}
+            >
+              <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+                <div className="relative w-full md:w-2/3">
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-700">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                      type="text"
+                      placeholder="Query archive by name, summary, or characters..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="input-arcane pl-15 text-[11px]"
+                  />
+                </div>
+
+                <div
+                    className="flex gap-1 p-1 w-full md:w-auto"
+                    style={{ background: 'rgba(0,0,0,0.35)', borderRadius: '3px', border: '1px solid rgba(var(--color-primary), 0.07)' }}
+                >
+                  {['all', 'region', 'landmark', 'character'].map((type) => (
+                      <button
+                          key={type}
+                          onClick={() => setActiveTypeFilter(type)}
+                          className="font-mono text-[9px] px-3 py-1.5 uppercase tracking-widest transition-all duration-200"
+                          style={{
+                            borderRadius: '2px',
+                            background: activeTypeFilter === type ? 'rgba(var(--color-primary), 0.12)' : 'transparent',
+                            color: activeTypeFilter === type ? 'rgb(var(--color-primary))' : '#4b5563',
+                            border: activeTypeFilter === type ? '1px solid rgba(var(--color-primary), 0.25)' : '1px solid transparent',
+                          }}
+                      >
+                        {type}
+                      </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+        )}
+
+        {/* DIVIDER */}
+        <div className="max-w-5xl mx-auto">
+          <div className="rule-gold" />
+        </div>
+
+        {/* ROOT / SEARCH RESULTS */}
+        {folderPath.length === 0 && (
+            <div className="space-y-3 max-w-5xl mx-auto">
+              <div className="flex items-center gap-3 px-1">
+                <div className="mote" />
+                <span className="field-label">
+              {searchQuery ? "Search Results" : "Root Archive"} — {filteredRecords.length} entries
+            </span>
+              </div>
+
+              {filteredRecords.length === 0 ? (
+                  <div
+                      className="text-center py-16 animate-fadeIn"
+                      style={{
+                        border: '1px dashed rgba(var(--color-primary), 0.08)',
+                        borderRadius: '4px',
+                        background: 'rgba(0,0,0,0.1)',
+                      }}
+                  >
+              <span className="font-mono text-[10px] text-gray-700 uppercase tracking-widest">
+                No traces match current parameters.
+              </span>
+                  </div>
+              ) : renderCardGrid(filteredRecords)}
+            </div>
+        )}
+
+        {/* FOLDER VIEW */}
+        {folderPath.length > 0 && !searchQuery && (
+            <div
+                className="max-w-6xl mx-auto flex overflow-hidden animate-fadeIn"
+                style={{
+                  border: '1px solid rgba(var(--color-primary), 0.1)',
+                  borderRadius: '4px',
+                  background: 'rgba(0,0,0,0.3)',
+                  backdropFilter: 'blur(8px)',
+                  minHeight: '600px',
+                }}
+            >
+              {/* Left pane */}
+              <div
+                  className="w-1/3 p-8 flex flex-col justify-between"
+                  style={{ borderRight: '1px solid rgba(var(--color-primary), 0.07)', background: 'rgba(var(--color-bg-surface), 0.5)' }}
+              >
+                <div className="space-y-6">
+                  <button
+                      onClick={() => setFolderPath(folderPath.slice(0, -1))}
+                      className="font-mono text-[9px] text-gray-600 hover:text-gray-300 uppercase tracking-widest flex items-center gap-2 transition-colors mb-6"
+                  >
+                    ← {folderPath.length > 1 ? folderPath[folderPath.length - 2].name : "Root Archive"}
+                  </button>
+
+                  <div className="space-y-2">
+                    <span className="field-label">Active Compendium</span>
+                    <h2
+                        className="font-display text-2xl tracking-[0.1em] uppercase leading-tight"
+                        style={{ color: folderPath[folderPath.length - 1].color || 'rgb(var(--color-primary))' }}
+                    >
+                      {folderPath[folderPath.length - 1].name || "UNNAMED"}
+                    </h2>
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="field-label">Synopsis</span>
+                    <p
+                        className="font-mono text-[10px] text-gray-500 leading-relaxed p-3 rounded"
+                        style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(var(--color-primary), 0.07)' }}
+                    >
+                      {folderPath[folderPath.length - 1].summary || "No description cataloged."}
+                    </p>
+                  </div>
+
+                  <button
+                      onClick={() => setFullscreenRecord(folderPath[folderPath.length - 1])}
+                      className="btn-ghost w-full py-2.5 text-[9px]"
+                  >
+                    ◈ Expand Grimoire
+                  </button>
+                </div>
+
+                <button
+                    onClick={() => { setIsFormOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="btn-ghost w-full py-2.5 text-[9px] mt-8"
+                >
+                  ＋ Add Entry Inside
+                </button>
+              </div>
+
+              {/* Right pane */}
+              <div
+                  className="w-2/3 p-8 overflow-y-auto arcane-scroll"
+                  style={{ background: 'linear-gradient(135deg, transparent, rgba(0,0,0,0.3))' }}
+              >
+                <div
+                    className="mb-5 flex items-center justify-between pb-4"
+                    style={{ borderBottom: '1px solid rgba(var(--color-primary), 0.07)' }}
+                >
+              <span className="field-label">
+                Contents of {folderPath[folderPath.length - 1].name || "UNNAMED"}
+              </span>
+                  <span
+                      className="font-mono text-[9px] text-gray-700 px-3 py-1 rounded"
+                      style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(var(--color-primary), 0.06)' }}
+                  >
+                {filteredRecords.length} items
+              </span>
+                </div>
+
+                {filteredRecords.length === 0 ? (
+                    <div
+                        className="text-center py-20"
+                        style={{ border: '1px dashed rgba(var(--color-primary), 0.07)', borderRadius: '4px' }}
+                    >
+                <span className="font-mono text-[9px] text-gray-700 uppercase tracking-widest block">
+                  This compendium is empty.
+                </span>
+                      <span className="font-mono text-[8px] text-gray-800 uppercase tracking-widest mt-2 block">
+                  Add an entry from the left panel.
+                </span>
+                    </div>
+                ) : renderCardGrid(filteredRecords)}
+              </div>
+            </div>
+        )}
+
+        {/* ================= FULLSCREEN RECORD MODAL ================= */}
+        {fullscreenRecord && createPortal(
+            <div
+                className="fixed inset-0 z-[999] flex items-center justify-center p-6 overflow-y-auto"
+                style={{ background: 'rgba(2,2,5,0.92)', backdropFilter: 'blur(12px)' }}
+                onClick={() => setFullscreenRecord(null)}
+            >
+              <div
+                  className="modal-panel max-w-4xl w-full relative my-auto animate-fadeIn"
+                  style={{ borderRadius: '4px' }}
+                  onClick={(e) => e.stopPropagation()}
+              >
+                <BracketCorners size={14} opacity={0.4} />
+
+                <div className="overflow-y-auto max-h-[88vh] p-8 space-y-6 arcane-scroll">
+                {/* Header */}
+                <div className="flex justify-between items-start pb-5"
+                     style={{ borderBottom: '1px solid rgba(var(--color-primary), 0.1)' }}>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div
+                          className="w-2 h-2 rounded-full"
+                          style={{
+                            backgroundColor: fullscreenRecord.color || 'rgb(var(--color-primary))',
+                            boxShadow: `0 0 6px ${fullscreenRecord.color || 'rgb(var(--color-primary))'}`
+                          }}
+                      />
+                      <span className="field-label">
+                    Archive Log — {fullscreenRecord.isFolder ? "Compendium" : (fullscreenRecord.subdivision || fullscreenRecord.type || "region")}
+                  </span>
+                    </div>
+                    <h2 className="font-display text-3xl tracking-[0.12em] uppercase text-gray-100">
+                      {fullscreenRecord.name || "UNNAMED"}
+                    </h2>
+                  </div>
+                  <button
+                      onClick={() => setFullscreenRecord(null)}
+                      className="btn-ghost text-[9px] py-1.5 px-4"
+                  >
+                    [ Close ]
+                  </button>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-6">
+                  {/* Left column */}
+                  <div
+                      className="md:col-span-1 space-y-5 pr-4"
+                      style={{ borderRight: '1px solid rgba(var(--color-primary), 0.07)' }}
+                  >
+                    <div className="space-y-2">
+                      <span className="field-label">Synopsis</span>
+                      <p
+                          className="font-mono text-[10px] text-gray-400 leading-relaxed p-3 rounded"
+                          style={{ background: 'rgba(var(--color-primary), 0.03)', border: '1px solid rgba(var(--color-primary), 0.07)' }}
+                      >
+                        {fullscreenRecord.summary || "No summary mapped."}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <span className="field-label">Key Figures</span>
+                      <div
+                          className="font-mono text-[10px] leading-relaxed p-3 rounded"
+                          style={{
+                            background: 'rgba(var(--color-primary), 0.04)',
+                            border: '1px solid rgba(var(--color-primary), 0.08)',
+                            color: 'rgba(var(--color-primary), 0.75)'
+                          }}
+                      >
+                        {fullscreenRecord.characters ? renderFormattedText(fullscreenRecord.characters) : "No identities tracked."}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right column — lore */}
+                  <div className="md:col-span-2 space-y-5">
+                    <div className="space-y-2">
+                      <span className="field-label">Chronicle Lore</span>
+                      <div className="record-lore-block">
+                        {fullscreenRecord.lore ? renderFormattedText(fullscreenRecord.lore) : "No narratives mapped."}
+                      </div>
+                    </div>
+
+                    {fullscreenRecord.images && fullscreenRecord.images.length > 0 && (
+                        <div className="space-y-2 pt-4"
+                             style={{ borderTop: '1px solid rgba(var(--color-primary), 0.07)' }}>
+                          <span className="field-label">Image Assets</span>
+                          <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto arcane-scroll">
+                            {fullscreenRecord.images.map((src, idx) => (
+                                <div
+                                    key={idx}
+                                    className="rounded overflow-hidden aspect-video"
+                                    style={{ border: '1px solid rgba(var(--color-primary), 0.07)' }}
+                                >
+                                  <img src={src} alt="Chronicle" className="w-full h-full object-cover" />
+                                </div>
+                            ))}
+                          </div>
+                        </div>
+                    )}
+                  </div>
+                </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+        )}
+
+        {/* EXPANDED TEXT EDITOR */}
+        {activeExpandedField && createPortal(
+            <div
+                className="fixed inset-0 z-[1000] flex flex-col p-6 animate-fadeIn"
+                style={{ background: 'rgba(2,2,5,0.97)', backdropFilter: 'blur(16px)' }}
+            >
+              <div className="max-w-5xl w-full mx-auto flex flex-col h-full space-y-4 pt-4">
+                <div
+                    className="flex justify-between items-center pb-4"
+                    style={{ borderBottom: '1px solid rgba(var(--color-primary), 0.1)' }}
+                >
+                  <div className="space-y-1">
+                <span className="field-label" style={{ color: 'rgba(var(--color-primary), 0.7)' }}>
+                  Deep Transcriber Terminal
+                </span>
+                    <h2 className="font-display text-xl tracking-[0.15em] uppercase text-gray-100">
+                      {activeExpandedField === 'lore' ? "Historical Annal Lore" : "Associated Key Figures"}
+                    </h2>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                        type="button"
+                        onClick={() => setIsLinkModalOpen(true)}
+                        className="btn-ghost text-[10px]"
+                    >
+                      ◈ Link Entity
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveExpandedField(null)}
+                        className="btn-primary text-[10px]"
+                    >
+                      Keep & Return
+                    </button>
+                  </div>
+                </div>
+
+                {/* Formatting guide */}
+                <div
+                    className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-2 rounded font-mono text-[9px] text-gray-600"
+                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(var(--color-primary), 0.07)' }}
+                >
+                  <span style={{ color: 'rgba(var(--color-primary), 0.6)' }} className="font-medium uppercase tracking-wider">Formatting:</span>
+                  <span>
+                <code className="text-gray-400 bg-black/60 px-1 rounded">**text**</code>
+                    {' '}<strong className="text-white">Bold</strong>
+              </span>
+                  <span>
+                <code className="text-gray-400 bg-black/60 px-1 rounded">*text*</code>
+                    {' '}<em style={{ color: 'rgba(var(--color-primary), 0.75)' }}>Italic</em>
+              </span>
+                  <span>
+                <code className="text-gray-400 bg-black/60 px-1 rounded">- item</code>
+                    {' '}✦ Bullet list
+              </span>
+                </div>
+
+                <div className="flex-1 w-full pb-4 relative">
+              <textarea
+                  ref={textAreaRef}
+                  value={activeExpandedField === 'lore' ? lore : characters}
+                  onChange={(e) => {
+                    if (activeExpandedField === 'lore') setLore(e.target.value);
+                    else setCharacters(e.target.value);
+                  }}
+                  placeholder={activeExpandedField === 'lore'
+                      ? "Begin writing. Highlight text and click 'Link Entity' to weave connections..."
+                      : "Catalog entities and figures..."}
+                  className="w-full h-full input-arcane p-6 text-[13px] leading-relaxed resize-none font-mono"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              />
+                </div>
+              </div>
+            </div>,
+            document.body
+        )}
+
+        {/* LINK SELECTION MODAL */}
+        {isLinkModalOpen && createPortal(
+            <div
+                className="fixed inset-0 z-[2000] flex items-center justify-center p-4"
+                style={{ background: 'rgba(2,2,5,0.85)', backdropFilter: 'blur(8px)' }}
+                onClick={() => setIsLinkModalOpen(false)}
+            >
+              <div
+                  className="modal-panel p-6 max-w-lg w-full space-y-4 animate-fadeIn relative"
+                  style={{ borderRadius: '4px' }}
+                  onClick={e => e.stopPropagation()}
+              >
+                <BracketCorners size={10} opacity={0.4} />
+                <div>
+                  <span className="field-label" style={{ color: 'rgba(var(--color-primary), 0.7)' }}>Weave Grimoire Link</span>
+                  <p className="font-mono text-[9px] text-gray-600 mt-1">
+                    Search for the entity to bind to the selected text.
+                  </p>
+                </div>
+                <input
+                    autoFocus type="text"
+                    placeholder="Query archive by name..."
+                    value={linkSearchQuery}
+                    onChange={(e) => setLinkSearchQuery(e.target.value)}
+                    className="input-arcane"
+                />
+                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 arcane-scroll">
+                  {mapData
+                      .filter(e => (e.name || '').toLowerCase().includes(linkSearchQuery.toLowerCase()) && e.id !== editingId)
+                      .map(entry => (
+                          <button
+                              key={entry.id}
+                              onClick={() => handleInsertLink(entry.id, entry.name)}
+                              className="w-full text-left p-3 transition-all duration-200 flex justify-between items-center group"
+                              style={{
+                                background: 'rgba(0,0,0,0.4)',
+                                border: '1px solid rgba(var(--color-primary), 0.07)',
+                                borderRadius: '3px',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.3)'}
+                              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.07)'}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entry.color || 'rgb(var(--color-primary))' }} />
+                              <span className="font-display text-[11px] tracking-wide text-gray-300 uppercase">{entry.name || "UNNAMED"}</span>
+                            </div>
+                            <span className="type-badge">{entry.isFolder ? "folder" : (entry.subdivision || entry.type)}</span>
+                          </button>
+                      ))
+                  }
+                </div>
+                <button onClick={() => setIsLinkModalOpen(false)} className="btn-ghost w-full text-[9px] py-2 mt-1">
+                  Cancel Binding
+                </button>
+              </div>
+            </div>,
+            document.body
+        )}
+
+        {/* MOVE MODAL */}
+        {isMoveModalOpen && createPortal(
+            <div
+                className="fixed inset-0 z-[2000] flex items-center justify-center p-4"
+                style={{ background: 'rgba(2,2,5,0.85)', backdropFilter: 'blur(8px)' }}
+                onClick={() => { setIsMoveModalOpen(false); setMoveTargetId(null); }}
+            >
+              <div
+                  className="modal-panel p-6 max-w-lg w-full space-y-4 animate-fadeInDown relative"
+                  style={{ borderRadius: '4px' }}
+                  onClick={(e) => e.stopPropagation()}
+              >
+                <BracketCorners size={10} opacity={0.4} />
+                <div>
+                  <span className="field-label" style={{ color: 'rgba(96,165,250,0.6)' }}>Relocate Entry</span>
+                  <p className="font-mono text-[9px] text-gray-600 mt-1">Select a Compendium Folder to house this record.</p>
+                </div>
+                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 arcane-scroll mt-3">
+                  <button
+                      onClick={() => handleMoveEntry(null)}
+                      className="w-full text-left p-3 flex items-center gap-3 transition-all group"
+                      style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(var(--color-primary), 0.07)', borderRadius: '3px' }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(96,165,250,0.3)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.07)'}
+                  >
+                    <span className="font-mono text-sm text-gray-600">◎</span>
+                    <span className="font-mono text-[11px] text-gray-400 uppercase tracking-wider">Root Archive</span>
+                  </button>
+                  {mapData.filter(e => e.isFolder && e.id !== moveTargetId).map(folder => (
+                      <button
+                          key={folder.id}
+                          onClick={() => handleMoveEntry(folder.id)}
+                          className="w-full text-left p-3 flex items-center gap-3 transition-all group"
+                          style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(var(--color-primary), 0.07)', borderRadius: '3px' }}
+                          onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(96,165,250,0.3)'}
+                          onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.07)'}
+                      >
+                        <span className="font-mono text-sm" style={{ color: 'rgba(var(--color-primary), 0.5)' }}>◈</span>
+                        <span className="font-mono text-[11px] text-gray-400 uppercase tracking-wider">{folder.name || "UNNAMED FOLDER"}</span>
+                      </button>
+                  ))}
+                </div>
+                <button onClick={() => { setIsMoveModalOpen(false); setMoveTargetId(null); }} className="btn-ghost w-full text-[9px] py-2 mt-1">
+                  Cancel
+                </button>
+              </div>
+            </div>,
+            document.body
+        )}
+
+      </div>
   );
 };
 
