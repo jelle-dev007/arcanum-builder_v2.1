@@ -163,6 +163,8 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
       entry.subdivision !== 'character' && entry.type !== 'character'
   );
 
+  const typeLabel = { region: 'Territory', landmark: 'Landmark', road: 'Route' };
+
   return (
       <div className="w-full h-full overflow-auto custom-scrollbar">
         <div
@@ -214,7 +216,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                           className="rounded bg-black border-gray-800"
                           style={{ accentColor: 'rgb(var(--color-primary))' }}
                       />
-                      LEYLINES & SANCTUARIES
+                      LANDMARKS & ROUTES
                     </label>
                   </div>
 
@@ -227,9 +229,9 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                         className="input-arcane text-[10px] py-1.5 px-2 w-auto"
                         style={{ borderRadius: '2px' }}
                     >
-                      <option value="region">REALM VEIL</option>
-                      <option value="landmark">SANCTUARY NODE</option>
-                      <option value="road">MYSTICAL PATHWAY</option>
+                      <option value="region">TERRITORY</option>
+                      <option value="landmark">LANDMARK</option>
+                      <option value="road">ROUTE</option>
                     </select>
 
                     <button
@@ -265,6 +267,23 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                           Seal Ink
                         </button>
                     )}
+
+                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.12)', margin: '0 2px' }} />
+                    <button
+                        onClick={() => mapUploadRef.current?.click()}
+                        className="font-mono text-[9px] px-3 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
+                        style={{
+                          borderRadius: '2px',
+                          background: 'rgba(0,0,0,0.4)',
+                          color: 'rgba(var(--color-primary), 0.5)',
+                          borderColor: 'rgba(var(--color-primary), 0.1)',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.35)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.5)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.1)'; }}
+                        title={currentMap.imageUrl ? 'Replace map image' : 'Upload map image'}
+                    >
+                      ↑ {currentMap.imageUrl ? 'Replace Map' : 'Upload Map'}
+                    </button>
                   </div>
                 </div>
             )}
@@ -341,31 +360,11 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                     />
 
                     {currentMap.imageUrl ? (
-                        <>
-                          <img
-                              src={currentMap.imageUrl}
-                              alt="Arcane Map Plane"
-                              className="w-full h-full object-contain pointer-events-none"
-                          />
-                          {/* Replace map button — top-left corner, always accessible */}
-                          <button
-                              onClick={() => mapUploadRef.current?.click()}
-                              className="absolute top-3 left-3 z-20 font-mono tracking-[0.2em] uppercase transition-all duration-300"
-                              style={{
-                                fontSize: 9,
-                                padding: '5px 10px',
-                                background: 'rgba(var(--color-bg-main), 0.82)',
-                                border: '1px solid rgba(var(--color-primary), 0.22)',
-                                color: 'rgba(var(--color-primary), 0.55)',
-                                backdropFilter: 'blur(4px)',
-                              }}
-                              onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.5)'; }}
-                              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.55)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.22)'; }}
-                              title="Replace map image"
-                          >
-                            ↑ Replace Map
-                          </button>
-                        </>
+                        <img
+                            src={currentMap.imageUrl}
+                            alt="Arcane Map Plane"
+                            className="w-full h-full object-contain pointer-events-none"
+                        />
                     ) : (
                         <div
                             className="w-full h-full flex flex-col items-center justify-center gap-4 transition-colors group cursor-pointer"
@@ -452,7 +451,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                       <option value="new">＋ Create New Chronicle Ledger</option>
                       {availableLinkOptions.map(option => (
                           <option key={option.id} value={option.id}>
-                            Bind to: {option.name.toUpperCase()} ({option.type || 'region'})
+                            Bind to: {option.name.toUpperCase()} ({typeLabel[option.type] || option.type || 'Territory'})
                           </option>
                       ))}
                     </select>
@@ -480,7 +479,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                     {/* Entry header */}
                     <div className="space-y-2 pb-4" style={{ borderBottom: '1px solid rgba(var(--color-primary), 0.08)' }}>
                       <div className="flex justify-between items-start">
-                        <span className="field-label">{sidebarEntry.type || 'Entity'} Chronicle</span>
+                        <span className="field-label">{typeLabel[sidebarEntry.type] || sidebarEntry.type || 'Entity'} Chronicle</span>
                         <button
                             onClick={() => { setSidebarEntry(null); setReshapeTargetId(null); setIsQuickEditing(false); }}
                             className="font-mono text-[8px] text-gray-600 hover:text-gray-300 uppercase tracking-widest transition-colors"

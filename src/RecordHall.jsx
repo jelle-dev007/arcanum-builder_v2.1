@@ -1,5 +1,31 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import ReactMarkdown from 'react-markdown';
+
+// ── Markdown toolbar button ───────────────────────────────────────────────────
+const TBtn = ({ label, title, onClick }) => (
+  <button
+    title={title}
+    onClick={onClick}
+    className="font-mono rounded transition-all duration-150"
+    style={{
+      fontSize: 10,
+      padding: '3px 7px',
+      letterSpacing: '0.06em',
+      color:      'rgba(var(--color-primary-soft), 0.55)',
+      background: 'transparent',
+      border:     '1px solid transparent',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.background = 'rgba(var(--color-primary), 0.08)'; e.currentTarget.style.border = '1px solid rgba(var(--color-primary), 0.18)'; }}
+    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary-soft), 0.55)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.border = '1px solid transparent'; }}
+  >
+    {label}
+  </button>
+);
+
+// ── Link syntax preprocessor ─────────────────────────────────────────────────
+const preprocessLinks = (text) =>
+  (text || '').replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '[$2](chronicle://$1)');
 
 // Shared bracket corners component
 const BracketCorners = ({ size = 14, opacity = 0.7 }) => (
@@ -18,10 +44,12 @@ const RecordHall = ({
                       currentPoints = [],
                       setCurrentPoints,
                       navigatedRecordId,
-                      setNavigatedRecordId
+                      setNavigatedRecordId,
+                      onGoBack,
                     }) => {
   const [editingId, setEditingId] = useState(null);
   const [fullscreenRecord, setFullscreenRecord] = useState(null);
+  const [recordHistory, setRecordHistory] = useState([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [activeExpandedField, setActiveExpandedField] = useState(null);
 
@@ -53,7 +81,10 @@ const RecordHall = ({
   useEffect(() => {
     if (navigatedRecordId) {
       const targetEntry = mapData.find(item => String(item.id) === String(navigatedRecordId));
-      if (targetEntry) setFullscreenRecord(targetEntry);
+      if (targetEntry) {
+        setRecordHistory([]);
+        setFullscreenRecord(targetEntry);
+      }
       if (setNavigatedRecordId) setNavigatedRecordId(null);
     }
   }, [navigatedRecordId, mapData, setNavigatedRecordId]);
@@ -77,31 +108,69 @@ const RecordHall = ({
     return () => clearInterval(interval);
   }, [hoveredLinkTarget]);
 
-  // ================= LORE LINK COMPONENT =================
-  const LoreLink = ({ targetId, displayText }) => {
-    const targetEntry = mapData.find(e => String(e.id) === String(targetId));
-    if (!targetEntry) {
-      return <span className="text-gray-700 line-through cursor-help" title="Record Erased">{displayText}</span>;
+  // ── Navigation helpers ────────────────────────────────────────────────────
+  const handleNavigateToFullscreen = useCallback((entry) => {
+    if (fullscreenRecord) setRecordHistory(prev => [...prev, fullscreenRecord]);
+    setFullscreenRecord(entry);
+  }, [fullscreenRecord]);
+
+  const handleCloseFullscreen = useCallback(() => {
+    if (recordHistory.length > 0) {
+      const prev = recordHistory[recordHistory.length - 1];
+      setRecordHistory(h => h.slice(0, -1));
+      setFullscreenRecord(prev);
+    } else {
+      setFullscreenRecord(null);
+      if (onGoBack) onGoBack();
     }
-    return (
-        <span
+  }, [recordHistory, onGoBack]);
+
+  // Stable components map — avoids remounting link subtrees on hover state changes
+  const mdComponents = useMemo(() => ({
+    a: ({ href, children }) => {
+      if (href?.startsWith('chronicle://')) {
+        const id = href.slice('chronicle://'.length);
+        const text = Array.isArray(children) ? children.join('') : String(children || '');
+        const targetEntry = mapData.find(e => String(e.id) === String(id));
+        if (!targetEntry) return <span className="text-gray-700 line-through cursor-help" title="Record Erased">{text}</span>;
+        return (
+          <span
             className="cursor-pointer font-medium transition-all duration-300"
-            style={{
-              color: targetEntry.color || 'rgb(var(--color-primary))',
-              textDecoration: 'underline',
-              textDecorationStyle: 'dashed',
-              textUnderlineOffset: '3px',
-              textDecorationColor: 'rgba(var(--color-primary), 0.35)'
-            }}
-            onMouseEnter={(e) => { setLinkTooltipPos({ x: e.clientX, y: e.clientY }); setHoveredLinkTarget(targetEntry); }}
-            onMouseMove={(e) => setLinkTooltipPos({ x: e.clientX, y: e.clientY })}
+            style={{ color: targetEntry.color || 'rgb(var(--color-primary))', textDecoration: 'underline', textDecorationStyle: 'dashed', textUnderlineOffset: '3px', textDecorationColor: 'rgba(var(--color-primary), 0.35)' }}
+            onMouseEnter={e => { setLinkTooltipPos({ x: e.clientX, y: e.clientY }); setHoveredLinkTarget(targetEntry); }}
+            onMouseMove={e => setLinkTooltipPos({ x: e.clientX, y: e.clientY })}
             onMouseLeave={() => setHoveredLinkTarget(null)}
-            onDoubleClick={(e) => { e.stopPropagation(); setHoveredLinkTarget(null); setFullscreenRecord(targetEntry); }}
-        >
-        {displayText}
-      </span>
-    );
-  };
+            onDoubleClick={e => { e.stopPropagation(); setHoveredLinkTarget(null); handleNavigateToFullscreen(targetEntry); }}
+          >{text}</span>
+        );
+      }
+      return <a href={href} onClick={e => e.preventDefault()} style={{ color: 'rgb(var(--color-primary))', textDecoration: 'underline' }}>{children}</a>;
+    }
+  }), [mapData, handleNavigateToFullscreen]); // eslint-disable-line
+
+  // ── Markdown toolbar insert ───────────────────────────────────────────────
+  const insertMd = useCallback((before, after = '', placeholder = 'text') => {
+    const ta = textAreaRef.current;
+    if (!ta) return;
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const sel = ta.value.slice(s, e) || placeholder;
+    const next = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
+    if (activeExpandedField === 'lore') setLore(next);
+    else setCharacters(next);
+    setTimeout(() => { ta.focus(); ta.selectionStart = s + before.length; ta.selectionEnd = s + before.length + sel.length; }, 0);
+  }, [activeExpandedField]);
+
+  const rhMdTools = [
+    { label: 'B',   title: 'Bold',        fn: () => insertMd('**', '**', 'bold text')  },
+    { label: 'I',   title: 'Italic',      fn: () => insertMd('*', '*', 'italic text')  },
+    { label: 'H1',  title: 'Heading 1',   fn: () => insertMd('# ', '', 'Heading')      },
+    { label: 'H2',  title: 'Heading 2',   fn: () => insertMd('## ', '', 'Heading')     },
+    { label: 'H3',  title: 'Heading 3',   fn: () => insertMd('### ', '', 'Heading')    },
+    { label: '❝',   title: 'Blockquote',  fn: () => insertMd('> ', '', 'quote')        },
+    { label: '`_`', title: 'Inline code', fn: () => insertMd('`', '`', 'code')         },
+    { label: '—',   title: 'Divider',     fn: () => insertMd('\n\n---\n\n', '', '')    },
+  ];
+
 
   // ================= LINK INJECTION =================
   const handleInsertLink = (targetId, targetName) => {
@@ -199,7 +268,7 @@ const RecordHall = ({
   };
 
   const handleEditInit = (entry, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     setIsFormOpen(true);
     setEditingId(entry.id);
     setName(entry.name || "");
@@ -468,11 +537,11 @@ const RecordHall = ({
 
                   <div className="space-y-1">
                     <label className="field-label">Chronicle Synopsis</label>
-                    <input
-                        type="text" value={summary} onChange={(e) => setSummary(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                    <textarea
+                        value={summary} onChange={(e) => setSummary(e.target.value)}
                         placeholder="Summary lines..."
-                        className="input-arcane"
+                        className="input-arcane resize-none"
+                        style={{ height: 72 }}
                     />
                   </div>
 
@@ -490,7 +559,7 @@ const RecordHall = ({
                       <textarea
                           value={lore} onChange={(e) => setLore(e.target.value)}
                           placeholder="Deep history logs..."
-                          className="input-arcane h-24 resize-none"
+                          className="input-arcane h-44 resize-none"
                       />
                     </div>
                     <div className="space-y-1">
@@ -506,7 +575,7 @@ const RecordHall = ({
                       <textarea
                           value={characters} onChange={(e) => setCharacters(e.target.value)}
                           placeholder="Names and context..."
-                          className="input-arcane h-24 resize-none"
+                          className="input-arcane h-44 resize-none"
                       />
                     </div>
                   </div>
@@ -743,107 +812,108 @@ const RecordHall = ({
             </div>
         )}
 
-        {/* ================= FULLSCREEN RECORD MODAL ================= */}
+        {/* ================= FULLSCREEN RECORD ================= */}
         {fullscreenRecord && createPortal(
             <div
-                className="fixed inset-0 z-[999] flex items-center justify-center p-6 overflow-y-auto"
-                style={{ background: 'rgba(2,2,5,0.92)', backdropFilter: 'blur(12px)' }}
-                onClick={() => setFullscreenRecord(null)}
+                className="fixed inset-0 z-[999] flex flex-col animate-fadeIn"
+                style={{ background: 'rgba(3,3,10,0.98)', backdropFilter: 'blur(16px)' }}
             >
+              {/* Sticky top bar */}
               <div
-                  className="modal-panel max-w-4xl w-full relative my-auto animate-fadeIn"
-                  style={{ borderRadius: '4px' }}
-                  onClick={(e) => e.stopPropagation()}
+                  className="flex-shrink-0 flex justify-between items-center px-10 py-4"
+                  style={{ borderBottom: '1px solid rgba(var(--color-primary), 0.12)', background: 'rgba(var(--color-bg-surface), 0.6)' }}
               >
-                <BracketCorners size={14} opacity={0.4} />
-
-                <div className="overflow-y-auto max-h-[88vh] p-8 space-y-6 arcane-scroll">
-                {/* Header */}
-                <div className="flex justify-between items-start pb-5"
-                     style={{ borderBottom: '1px solid rgba(var(--color-primary), 0.1)' }}>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <div
-                          className="w-2 h-2 rounded-full"
-                          style={{
-                            backgroundColor: fullscreenRecord.color || 'rgb(var(--color-primary))',
-                            boxShadow: `0 0 6px ${fullscreenRecord.color || 'rgb(var(--color-primary))'}`
-                          }}
-                      />
-                      <span className="field-label">
-                    Archive Log — {fullscreenRecord.isFolder ? "Compendium" : (fullscreenRecord.subdivision || fullscreenRecord.type || "region")}
-                  </span>
-                    </div>
-                    <h2 className="font-display text-3xl tracking-[0.12em] uppercase text-gray-100">
+                <div className="flex items-center gap-4">
+                  <div
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: fullscreenRecord.color || 'rgb(var(--color-primary))', boxShadow: `0 0 8px ${fullscreenRecord.color || 'rgb(var(--color-primary))'}` }}
+                  />
+                  <div>
+                    <span className="field-label block">
+                      Archive Log — {fullscreenRecord.isFolder ? "Compendium" : (fullscreenRecord.subdivision || fullscreenRecord.type || "region")}
+                    </span>
+                    <h2 className="font-display text-xl tracking-[0.12em] uppercase text-gray-100 mt-0.5">
                       {fullscreenRecord.name || "UNNAMED"}
                     </h2>
                   </div>
-                  <button
-                      onClick={() => setFullscreenRecord(null)}
+                </div>
+                <div className="flex gap-2 items-center">
+                  {!isFocusMode && (
+                    <button
+                      onClick={() => { setFullscreenRecord(null); handleEditInit(fullscreenRecord); }}
                       className="btn-ghost text-[9px] py-1.5 px-4"
+                    >
+                      [ Edit ]
+                    </button>
+                  )}
+                  <button
+                    onClick={handleCloseFullscreen}
+                    className="btn-ghost text-[9px] py-1.5 px-4"
                   >
-                    [ Close ]
+                    {recordHistory.length > 0 || onGoBack ? '[ ← Back ]' : '[ Close ]'}
                   </button>
                 </div>
+              </div>
 
-                <div className="grid md:grid-cols-3 gap-6">
-                  {/* Left column */}
-                  <div
-                      className="md:col-span-1 space-y-5 pr-4"
-                      style={{ borderRight: '1px solid rgba(var(--color-primary), 0.07)' }}
-                  >
-                    <div className="space-y-2">
-                      <span className="field-label">Synopsis</span>
-                      <p
-                          className="font-mono text-[10px] text-gray-400 leading-relaxed p-3 rounded"
-                          style={{ background: 'rgba(var(--color-primary), 0.03)', border: '1px solid rgba(var(--color-primary), 0.07)' }}
-                      >
-                        {fullscreenRecord.summary || "No summary mapped."}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <span className="field-label">Key Figures</span>
-                      <div
-                          className="font-mono text-[10px] leading-relaxed p-3 rounded"
-                          style={{
-                            background: 'rgba(var(--color-primary), 0.04)',
-                            border: '1px solid rgba(var(--color-primary), 0.08)',
-                            color: 'rgba(var(--color-primary), 0.75)'
-                          }}
-                      >
-                        {fullscreenRecord.characters ? renderFormattedText(fullscreenRecord.characters) : "No identities tracked."}
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto arcane-scroll px-10 py-8">
+                <div className="max-w-6xl mx-auto">
+                  <div className="grid md:grid-cols-3 gap-8">
+                    {/* Left column — synopsis, key figures */}
+                    <div
+                        className="md:col-span-1 space-y-5 pr-6"
+                        style={{ borderRight: '1px solid rgba(var(--color-primary), 0.07)' }}
+                    >
+                      <div className="space-y-2">
+                        <span className="field-label">Synopsis</span>
+                        <p
+                            className="font-mono text-[10px] text-gray-400 leading-relaxed p-3 rounded"
+                            style={{ background: 'rgba(var(--color-primary), 0.03)', border: '1px solid rgba(var(--color-primary), 0.07)', whiteSpace: 'pre-wrap' }}
+                        >
+                          {fullscreenRecord.summary || "No summary mapped."}
+                        </p>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Right column — lore */}
-                  <div className="md:col-span-2 space-y-5">
-                    <div className="space-y-2">
-                      <span className="field-label">Chronicle Lore</span>
-                      <div className="record-lore-block">
-                        {fullscreenRecord.lore ? renderFormattedText(fullscreenRecord.lore) : "No narratives mapped."}
-                      </div>
-                    </div>
-
-                    {fullscreenRecord.images && fullscreenRecord.images.length > 0 && (
-                        <div className="space-y-2 pt-4"
-                             style={{ borderTop: '1px solid rgba(var(--color-primary), 0.07)' }}>
-                          <span className="field-label">Image Assets</span>
-                          <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto arcane-scroll">
-                            {fullscreenRecord.images.map((src, idx) => (
-                                <div
-                                    key={idx}
-                                    className="rounded overflow-hidden aspect-video"
-                                    style={{ border: '1px solid rgba(var(--color-primary), 0.07)' }}
-                                >
-                                  <img src={src} alt="Chronicle" className="w-full h-full object-cover" />
-                                </div>
-                            ))}
-                          </div>
+                      <div className="space-y-2">
+                        <span className="field-label">Key Figures</span>
+                        <div
+                            className="journal-prose p-3 rounded"
+                            style={{ background: 'rgba(var(--color-primary), 0.04)', border: '1px solid rgba(var(--color-primary), 0.08)', fontSize: 12 }}
+                        >
+                          {fullscreenRecord.characters
+                            ? <ReactMarkdown components={mdComponents} urlTransform={url => url}>{preprocessLinks(fullscreenRecord.characters)}</ReactMarkdown>
+                            : <span style={{ color: 'rgba(var(--color-primary-soft), 0.3)', fontStyle: 'italic' }}>No identities tracked.</span>
+                          }
                         </div>
-                    )}
+                      </div>
+                    </div>
+
+                    {/* Right column — lore, images */}
+                    <div className="md:col-span-2 space-y-5">
+                      <div className="space-y-2">
+                        <span className="field-label">Chronicle Lore</span>
+                        <div className="record-lore-block journal-prose" style={{ fontSize: 13 }}>
+                          {fullscreenRecord.lore
+                            ? <ReactMarkdown components={mdComponents} urlTransform={url => url}>{preprocessLinks(fullscreenRecord.lore)}</ReactMarkdown>
+                            : <span style={{ color: 'rgba(var(--color-primary-soft), 0.3)', fontStyle: 'italic' }}>No narratives mapped.</span>
+                          }
+                        </div>
+                      </div>
+
+                      {fullscreenRecord.images && fullscreenRecord.images.length > 0 && (
+                          <div className="space-y-2 pt-4" style={{ borderTop: '1px solid rgba(var(--color-primary), 0.07)' }}>
+                            <span className="field-label">Image Assets</span>
+                            <div className="grid grid-cols-2 gap-3">
+                              {fullscreenRecord.images.map((src, idx) => (
+                                  <div key={idx} className="rounded overflow-hidden aspect-video"
+                                       style={{ border: '1px solid rgba(var(--color-primary), 0.07)' }}>
+                                    <img src={src} alt="Chronicle" className="w-full h-full object-cover" />
+                                  </div>
+                              ))}
+                            </div>
+                          </div>
+                      )}
+                    </div>
                   </div>
-                </div>
                 </div>
               </div>
             </div>,
@@ -887,24 +957,12 @@ const RecordHall = ({
                   </div>
                 </div>
 
-                {/* Formatting guide */}
-                <div
-                    className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-2 rounded font-mono text-[9px] text-gray-600"
-                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(var(--color-primary), 0.07)' }}
-                >
-                  <span style={{ color: 'rgba(var(--color-primary), 0.6)' }} className="font-medium uppercase tracking-wider">Formatting:</span>
-                  <span>
-                <code className="text-gray-400 bg-black/60 px-1 rounded">**text**</code>
-                    {' '}<strong className="text-white">Bold</strong>
-              </span>
-                  <span>
-                <code className="text-gray-400 bg-black/60 px-1 rounded">*text*</code>
-                    {' '}<em style={{ color: 'rgba(var(--color-primary), 0.75)' }}>Italic</em>
-              </span>
-                  <span>
-                <code className="text-gray-400 bg-black/60 px-1 rounded">- item</code>
-                    {' '}✦ Bullet list
-              </span>
+                {/* Markdown toolbar */}
+                <div className="flex items-center gap-1 flex-wrap"
+                  style={{ padding: '6px 2px', borderBottom: '1px solid rgba(var(--color-primary), 0.08)' }}>
+                  {rhMdTools.map(({ label, title, fn }) => (
+                    <TBtn key={label} label={label} title={title} onClick={fn} />
+                  ))}
                 </div>
 
                 <div className="flex-1 w-full pb-4 relative">
