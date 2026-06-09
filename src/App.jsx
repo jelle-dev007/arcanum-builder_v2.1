@@ -302,15 +302,22 @@ function App() {
 
   const deleteMap = (e, idToDelete) => {
     e.stopPropagation();
-    if (maps.length === 1) {
-      alert("The last plane cannot be severed — the archive must contain at least one.");
-      return;
-    }
-    if (window.confirm("Sever this plane and all its chronicle data from the archive?")) {
-      setMaps(prev => prev.filter(m => m.id !== idToDelete));
-      if (activeMapId === idToDelete) {
-        const remaining = maps.filter(m => m.id !== idToDelete);
-        setActiveMapId(remaining[0]?.id || null);
+    const isLast = maps.length === 1;
+    const message = isLast
+      ? "Reset this plane and clear all its records and journal entries? A blank plane will take its place."
+      : "Sever this plane and all its chronicle data from the archive?";
+    if (window.confirm(message)) {
+      localStorage.removeItem(`arcanum_journal_${idToDelete}`);
+      if (isLast) {
+        const freshId = `map-${Date.now()}`;
+        setMaps([{ id: freshId, name: 'UNNAMED PLANE', imageUrl: null, data: [] }]);
+        setActiveMapId(freshId);
+      } else {
+        setMaps(prev => prev.filter(m => m.id !== idToDelete));
+        if (activeMapId === idToDelete) {
+          const remaining = maps.filter(m => m.id !== idToDelete);
+          setActiveMapId(remaining[0]?.id || null);
+        }
       }
     }
   };
@@ -749,18 +756,16 @@ function App() {
                               >
                                 ✎
                               </button>
-                              {maps.length > 1 && (
-                                <button
-                                  onClick={(e) => deleteMap(e, m.id)}
-                                  title="Remove plane"
-                                  className="font-mono text-[14px] transition-colors duration-200"
-                                  style={{ color: 'rgba(220, 80, 80, 0.55)' }}
-                                  onMouseEnter={e => e.currentTarget.style.color = 'rgba(248, 113, 113, 1)'}
-                                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(220, 80, 80, 0.55)'}
-                                >
-                                  ✕
-                                </button>
-                              )}
+                              <button
+                                onClick={(e) => deleteMap(e, m.id)}
+                                title={maps.length > 1 ? "Remove plane" : "Reset plane to blank slate"}
+                                className="font-mono text-[14px] transition-colors duration-200"
+                                style={{ color: 'rgba(220, 80, 80, 0.55)' }}
+                                onMouseEnter={e => e.currentTarget.style.color = 'rgba(248, 113, 113, 1)'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'rgba(220, 80, 80, 0.55)'}
+                              >
+                                ✕
+                              </button>
                             </div>
                           </div>
                           {/* Bottom row */}
