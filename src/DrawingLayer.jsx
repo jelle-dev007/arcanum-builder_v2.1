@@ -9,7 +9,7 @@ const DrawingLayer = ({
   reshapeTargetId,
   mapData, setMapData,
   sidebarEntry, setSidebarEntry,
-  currentPoints, setCurrentPoints,
+  currentPoints, setCurrentPoints, onAddPoint,
   onHoverEntry, onLeaveEntry,
   onClickEntry, onDoubleClickEntry,
   showRegions, showLandmarks,
@@ -42,7 +42,7 @@ const DrawingLayer = ({
     const { x, y } = getCanvasCoordinates(e, e.currentTarget);
 
     if (creationType === 'landmark') {
-      setCurrentPoints([x, y]);
+      if (onAddPoint) onAddPoint(x, y, true); else setCurrentPoints([x, y]);
       return;
     }
 
@@ -54,7 +54,7 @@ const DrawingLayer = ({
       }
     }
 
-    setCurrentPoints((prev) => [...prev, x, y]);
+    if (onAddPoint) onAddPoint(x, y); else setCurrentPoints((prev) => [...prev, x, y]);
   };
 
   const handleVertexMouseDown = (e, entryId, pointIndex) => {

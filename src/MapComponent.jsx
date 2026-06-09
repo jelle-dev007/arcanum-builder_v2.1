@@ -25,6 +25,8 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
   const mapCanvasRef    = useRef(null);
   const transformRef    = useRef(null);
   const mapUploadRef    = useRef(null);
+  const undoStackRef    = useRef([]);
+  const redoStackRef    = useRef([]);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   // Track container dimensions for fit-scale calculation
@@ -55,10 +57,24 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
         if (reshapeTargetId) setReshapeTargetId(null);
         if (isDrawingMode) exitDrawingMode();
       }
+      if (isDrawingMode && e.ctrlKey && e.key === 'z') {
+        e.preventDefault();
+        if (undoStackRef.current.length > 0) {
+          redoStackRef.current.push([...currentPoints]);
+          setCurrentPoints(undoStackRef.current.pop());
+        }
+      }
+      if (isDrawingMode && e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+        e.preventDefault();
+        if (redoStackRef.current.length > 0) {
+          undoStackRef.current.push([...currentPoints]);
+          setCurrentPoints(redoStackRef.current.pop());
+        }
+      }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [reshapeTargetId, isDrawingMode]);
+  }, [reshapeTargetId, isDrawingMode, currentPoints]);
 
   useEffect(() => {
     if (!hoveredEntry || !hoveredEntry.images || hoveredEntry.images.length <= 1) {
@@ -78,8 +94,23 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
     }
   }, [isFocusMode]);
 
-  const exitDrawingMode = () => { setIsDrawingMode(false); setCurrentPoints([]); };
+  const exitDrawingMode = () => {
+    setIsDrawingMode(false);
+    setCurrentPoints([]);
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+  };
   const closeSidebar = () => { setSidebarEntry(null); setReshapeTargetId(null); setIsQuickEditing(false); };
+
+  const onAddPoint = (x, y, replace = false) => {
+    undoStackRef.current.push([...currentPoints]);
+    redoStackRef.current = [];
+    if (replace) {
+      setCurrentPoints([x, y]);
+    } else {
+      setCurrentPoints(prev => [...prev, x, y]);
+    }
+  };
 
   const handleFinishDrawing = () => {
     if (creationType !== 'landmark' && currentPoints.length < 4) {
@@ -201,16 +232,18 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                   <div className="flex items-center gap-3 font-mono text-[9px] tracking-[0.18em] text-gray-500">
 
                     {/* Visibility toggles */}
-                    <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
-                      <input type="checkbox" checked={showRegions} onChange={() => setShowRegions(!showRegions)}
-                          className="rounded bg-black border-gray-800" style={{ accentColor: 'rgb(var(--color-primary))' }} />
-                      TERRITORIES
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
-                      <input type="checkbox" checked={showLandmarks} onChange={() => setShowLandmarks(!showLandmarks)}
-                          className="rounded bg-black border-gray-800" style={{ accentColor: 'rgb(var(--color-primary))' }} />
-                      LANDMARKS & ROUTES
-                    </label>
+                    <div data-tutorial="visibility-toggles" className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
+                        <input type="checkbox" checked={showRegions} onChange={() => setShowRegions(!showRegions)}
+                            className="rounded bg-black border-gray-800" style={{ accentColor: 'rgb(var(--color-primary))' }} />
+                        TERRITORIES
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors">
+                        <input type="checkbox" checked={showLandmarks} onChange={() => setShowLandmarks(!showLandmarks)}
+                            className="rounded bg-black border-gray-800" style={{ accentColor: 'rgb(var(--color-primary))' }} />
+                        LANDMARKS & ROUTES
+                      </label>
+                    </div>
 
                     <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.15)' }} />
 
@@ -225,7 +258,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                     <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.15)' }} />
 
                     {/* Drawing type */}
-                    <select value={creationType} onChange={(e) => { setCreationType(e.target.value); setCurrentPoints([]); }}
+                    <select data-tutorial="drawing-type" value={creationType} onChange={(e) => { setCreationType(e.target.value); setCurrentPoints([]); }}
                         disabled={isDrawingMode || !!reshapeTargetId}
                         className="font-mono text-[10px] tracking-[0.14em] cursor-pointer outline-none"
                         style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(var(--color-primary), 0.12)', color: 'rgba(var(--color-primary), 0.85)', borderRadius: '2px', padding: '0.375rem 0.5rem', textAlign: 'center', lineHeight: '1', boxSizing: 'border-box' }}>
@@ -410,7 +443,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                           reshapeTargetId={reshapeTargetId}
                           mapData={mapData} setMapData={setMapData}
                           sidebarEntry={sidebarEntry} setSidebarEntry={setSidebarEntry}
-                          currentPoints={currentPoints} setCurrentPoints={setCurrentPoints}
+                          currentPoints={currentPoints} setCurrentPoints={setCurrentPoints} onAddPoint={onAddPoint}
                           onHoverEntry={(e, entry) => {
                             setTooltipPos({ x: e.clientX + 15, y: e.clientY + 15 });
                             setHoveredEntry(entry);

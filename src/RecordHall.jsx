@@ -3,6 +3,43 @@ import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import BracketCorners from './BracketCorners';
 import { preprocessLinks } from './utils/links';
+import RecordGraph from './RecordGraph';
+
+// ── Export helpers ────────────────────────────────────────────────────────────
+
+const saveMarkdown = async (content, filename) => {
+  if (typeof window !== 'undefined' && window.require) {
+    try {
+      const { ipcRenderer } = window.require('electron');
+      await ipcRenderer.invoke('save-file', { data: content, filename });
+      return;
+    } catch {}
+  }
+  const blob = new Blob([content], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+};
+
+const formatRecord = (entry) => {
+  const sections = [
+    `# ${entry.name || 'Unnamed'}`,
+    '',
+    `**Type:** ${entry.subdivision || entry.type || 'region'}`,
+    entry.color ? `**Color:** ${entry.color}` : null,
+    '',
+    '## Summary',
+    entry.summary || '_No summary._',
+    '',
+    '## Lore',
+    entry.lore || '_No lore recorded._',
+    '',
+    '## Key Figures',
+    entry.characters || '_None noted._',
+  ].filter(l => l !== null).join('\n');
+  return sections;
+};
 
 // ── Markdown toolbar button ───────────────────────────────────────────────────
 const TBtn = ({ label, title, onClick }) => (
@@ -37,6 +74,7 @@ const RecordHall = ({
                     }) => {
   const [editingId, setEditingId] = useState(null);
   const [fullscreenRecord, setFullscreenRecord] = useState(null);
+  const [showGraph, setShowGraph] = useState(false);
   const [recordHistory, setRecordHistory] = useState([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [activeExpandedField, setActiveExpandedField] = useState(null);
@@ -416,7 +454,7 @@ const RecordHall = ({
 
         {/* NEW ENTRY BUTTON */}
         {!isFocusMode && !searchQuery && folderPath.length === 0 && (
-            <div className="flex justify-center animate-fadeIn">
+            <div className="flex justify-center items-center gap-3 animate-fadeIn">
               <button
                   type="button"
                   onClick={() => { if (isFormOpen) resetForm(); setIsFormOpen(!isFormOpen); }}
@@ -432,6 +470,22 @@ const RecordHall = ({
                 <BracketCorners size={6} opacity={isFormOpen ? 0.3 : 0.5} />
                 {isFormOpen ? "✕ Close Inscription Panel" : "＋ Begin New Chronicle Entry"}
               </button>
+              {mapData.filter(e => !e.isFolder).length > 0 && (
+                <button
+                  onClick={() => setShowGraph(true)}
+                  className="font-mono text-[10px] py-3 px-5 tracking-[0.22em] uppercase border transition-all duration-300"
+                  style={{
+                    borderRadius: '3px',
+                    background: 'rgba(var(--color-primary), 0.04)',
+                    borderColor: 'rgba(var(--color-primary), 0.18)',
+                    color: 'rgba(var(--color-primary), 0.65)',
+                    boxShadow: '0 0 16px rgba(var(--color-primary), 0.04)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.1)'; e.currentTarget.style.color = 'rgb(var(--color-primary))'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.04)'; e.currentTarget.style.color = 'rgba(var(--color-primary), 0.65)'; }}
+                  title="View record connection web"
+                >◈ Web</button>
+              )}
             </div>
         )}
 
@@ -646,25 +700,41 @@ const RecordHall = ({
                   />
                 </div>
 
-                <div
-                    className="flex gap-1 p-1 w-full md:w-auto"
-                    style={{ background: 'rgba(0,0,0,0.35)', borderRadius: '3px', border: '1px solid rgba(var(--color-primary), 0.07)' }}
-                >
-                  {['all', 'region', 'landmark', 'character'].map((type) => (
-                      <button
-                          key={type}
-                          onClick={() => setActiveTypeFilter(type)}
-                          className="font-mono text-[9px] px-3 py-1.5 uppercase tracking-widest transition-all duration-200"
-                          style={{
-                            borderRadius: '2px',
-                            background: activeTypeFilter === type ? 'rgba(var(--color-primary), 0.12)' : 'transparent',
-                            color: activeTypeFilter === type ? 'rgb(var(--color-primary))' : '#4b5563',
-                            border: activeTypeFilter === type ? '1px solid rgba(var(--color-primary), 0.25)' : '1px solid transparent',
-                          }}
-                      >
-                        {type}
-                      </button>
-                  ))}
+                <div className="flex items-center gap-2 w-full md:w-auto flex-shrink-0">
+                  <div
+                      className="flex gap-1 p-1"
+                      style={{ background: 'rgba(0,0,0,0.35)', borderRadius: '3px', border: '1px solid rgba(var(--color-primary), 0.07)' }}
+                  >
+                    {['all', 'region', 'landmark', 'character'].map((type) => (
+                        <button
+                            key={type}
+                            onClick={() => setActiveTypeFilter(type)}
+                            className="font-mono text-[9px] px-3 py-1.5 uppercase tracking-widest transition-all duration-200"
+                            style={{
+                              borderRadius: '2px',
+                              background: activeTypeFilter === type ? 'rgba(var(--color-primary), 0.12)' : 'transparent',
+                              color: activeTypeFilter === type ? 'rgb(var(--color-primary))' : '#4b5563',
+                              border: activeTypeFilter === type ? '1px solid rgba(var(--color-primary), 0.25)' : '1px solid transparent',
+                            }}
+                        >
+                          {type}
+                        </button>
+                    ))}
+                  </div>
+                  {!isFocusMode && mapData.filter(e => !e.isFolder).length > 0 && (
+                    <button
+                      onClick={() => {
+                        const nonFolders = mapData.filter(e => !e.isFolder);
+                        const content = nonFolders.map(formatRecord).join('\n\n---\n\n');
+                        saveMarkdown(content, 'chronicle_export.md');
+                      }}
+                      className="font-mono uppercase tracking-widest transition-all duration-200 flex-shrink-0"
+                      style={{ fontSize: 9, padding: '6px 10px', borderRadius: '3px', background: 'rgba(var(--color-primary), 0.07)', color: 'rgba(var(--color-primary), 0.55)', border: '1px solid rgba(var(--color-primary), 0.13)' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.14)'; e.currentTarget.style.color = 'rgb(var(--color-primary))'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.07)'; e.currentTarget.style.color = 'rgba(var(--color-primary), 0.55)'; }}
+                      title="Export all records as Markdown"
+                    >↓ Export All</button>
+                  )}
                 </div>
               </div>
             </div>
@@ -827,12 +897,21 @@ const RecordHall = ({
                 </div>
                 <div className="flex gap-2 items-center">
                   {!isFocusMode && (
-                    <button
-                      onClick={() => { setFullscreenRecord(null); handleEditInit(fullscreenRecord); }}
-                      className="btn-ghost text-[9px] py-1.5 px-4"
-                    >
-                      [ Edit ]
-                    </button>
+                    <>
+                      <button
+                        onClick={() => saveMarkdown(formatRecord(fullscreenRecord), `${(fullscreenRecord.name || 'record').replace(/\s+/g, '_').toLowerCase()}.md`)}
+                        className="btn-ghost text-[9px] py-1.5 px-4"
+                        title="Export this record as Markdown"
+                      >
+                        [ ↓ Export ]
+                      </button>
+                      <button
+                        onClick={() => { setFullscreenRecord(null); handleEditInit(fullscreenRecord); }}
+                        className="btn-ghost text-[9px] py-1.5 px-4"
+                      >
+                        [ Edit ]
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={handleCloseFullscreen}
@@ -1080,6 +1159,19 @@ const RecordHall = ({
               </div>
             </div>,
             document.body
+        )}
+
+        {/* RECORD RELATIONSHIP GRAPH */}
+        {showGraph && createPortal(
+          <RecordGraph
+            entries={mapData}
+            onNavigate={(id) => {
+              const entry = mapData.find(e => String(e.id) === String(id));
+              if (entry) handleNavigateToFullscreen(entry);
+            }}
+            onClose={() => setShowGraph(false)}
+          />,
+          document.body
         )}
 
       </div>

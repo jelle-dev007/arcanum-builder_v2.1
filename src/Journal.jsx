@@ -46,6 +46,16 @@ const removeEntry = (entries, id) =>
 
 const journalKey = (realmId) => realmId ? `arcanum_journal_${realmId}` : 'arcanum_journal';
 
+const flattenEntries = (entries, ancestorPath = '') => {
+  let result = [];
+  for (const e of entries) {
+    result.push({ ...e, _path: ancestorPath });
+    const childPath = ancestorPath ? `${ancestorPath} › ${e.title || 'Untitled'}` : (e.title || 'Untitled');
+    result = result.concat(flattenEntries(e.children, childPath));
+  }
+  return result;
+};
+
 const load = (realmId) => {
   try { return JSON.parse(localStorage.getItem(journalKey(realmId))) || []; }
   catch { return []; }
@@ -184,6 +194,7 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fullscreen,  setFullscreen]  = useState(false);
   const [preview,     setPreview]     = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Chronicle link state
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -200,6 +211,15 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
   }, [entries, realmId]);
 
   const selected = selectedId ? findEntry(entries, selectedId) : null;
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return flattenEntries(entries).filter(e =>
+      (e.title || '').toLowerCase().includes(q) ||
+      (e.content || '').toLowerCase().includes(q)
+    );
+  }, [searchQuery, entries]);
 
   // ── Entry management ──────────────────────────────────────────────────
   const handleSelectEntry = (id) => {
@@ -362,9 +382,70 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
             >+</button>
           </div>
 
+          {/* Search */}
+          <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(var(--color-primary), 0.07)' }}>
+            <div className="relative">
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search entries…"
+                className="w-full font-mono"
+                style={{
+                  fontSize: 10,
+                  letterSpacing: '0.06em',
+                  padding: '5px 24px 5px 8px',
+                  background: 'rgba(var(--color-primary), 0.05)',
+                  border: '1px solid rgba(var(--color-primary), 0.15)',
+                  borderRadius: 2,
+                  color: 'rgba(var(--color-primary-soft), 0.8)',
+                  outline: 'none',
+                  width: '100%',
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                    fontSize: 10, color: 'rgba(var(--color-primary), 0.4)', lineHeight: 1,
+                  }}
+                >✕</button>
+              )}
+            </div>
+          </div>
+
           {/* List */}
           <div className="flex-1 overflow-y-auto arcane-scroll py-2">
-            {entries.length === 0 ? (
+            {searchQuery.trim() ? (
+              searchResults.length === 0 ? (
+                <p className="font-mono text-center" style={{ fontSize: 10, color: 'rgba(var(--color-primary-soft), 0.28)', padding: '28px 16px', lineHeight: 2 }}>
+                  No matches found.
+                </p>
+              ) : (
+                searchResults.map(entry => (
+                  <div
+                    key={entry.id}
+                    onClick={() => { handleSelectEntry(entry.id); setSearchQuery(''); }}
+                    className="cursor-pointer transition-colors duration-150"
+                    style={{
+                      padding: '6px 12px',
+                      background: entry.id === selectedId ? 'rgba(var(--color-primary), 0.1)' : 'transparent',
+                    }}
+                    onMouseEnter={e => { if (entry.id !== selectedId) e.currentTarget.style.background = 'rgba(var(--color-primary), 0.05)'; }}
+                    onMouseLeave={e => { if (entry.id !== selectedId) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div className="font-mono truncate" style={{ fontSize: 11, letterSpacing: '0.05em', color: entry.id === selectedId ? 'rgb(var(--color-primary))' : 'rgba(var(--color-primary-soft), 0.75)' }}>
+                      {entry.title || 'Untitled'}
+                    </div>
+                    {entry._path && (
+                      <div className="font-mono truncate" style={{ fontSize: 9, letterSpacing: '0.04em', color: 'rgba(var(--color-primary), 0.3)', marginTop: 2 }}>
+                        {entry._path}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )
+            ) : entries.length === 0 ? (
               <p
                 className="font-mono text-center"
                 style={{ fontSize: 10, color: 'rgba(var(--color-primary-soft), 0.28)', padding: '28px 16px', lineHeight: 2 }}

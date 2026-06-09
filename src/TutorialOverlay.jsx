@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 const STEPS = [
+  // ── Home ──────────────────────────────────────────────
   {
     view: 'home',
     selector: '[data-tutorial="planes-grid"]',
@@ -12,14 +13,29 @@ const STEPS = [
     view: 'home',
     selector: '[data-tutorial="import-export"]',
     title: 'Import & Export',
-    body: 'Save your entire archive as a JSON file, or restore from a previous session. Data lives in your browser — keep it backed up.',
+    body: 'Save your entire archive as a JSON file, or restore a previous session. Data lives in local storage — keep it backed up.',
     position: 'bottom',
   },
+  // ── Map — setup ───────────────────────────────────────
   {
     view: 'map',
     selector: '[data-tutorial="controls-bar"]',
     title: 'Map Controls',
-    body: 'Visibility toggles, ink style, drawing type, and the Commence Cartography button all live here.',
+    body: 'All map tools live in this bar — visibility toggles, ink style, drawing type, and actions.',
+    position: 'bottom',
+  },
+  {
+    view: 'map',
+    selector: '[data-tutorial="visibility-toggles"]',
+    title: 'Visibility Layers',
+    body: 'Unchecking Territories or Landmarks & Routes hides that layer from the map. Useful for focusing on one type at a time.',
+    position: 'bottom',
+  },
+  {
+    view: 'map',
+    selector: '[data-tutorial="drawing-type"]',
+    title: 'Drawing Type',
+    body: 'Choose what to draw before entering drawing mode. Territory traces a filled region, Landmark places a single point, and Route draws an open path.',
     position: 'bottom',
   },
   {
@@ -29,11 +45,12 @@ const STEPS = [
     body: "Cartographer's Hand adds organic wobble to your lines — like hand-drawn. Straight Lines gives clean, precise strokes.",
     position: 'bottom',
   },
+  // ── Map — drawing ─────────────────────────────────────
   {
     view: 'map',
     selector: '[data-tutorial="draw-btn"]',
     title: 'Commence Cartography',
-    body: 'Click to enter drawing mode, then click the map to place anchor nodes and trace territories, routes, or landmarks.',
+    body: 'Click to enter drawing mode. While drawing, Ctrl+Z undoes the last placed node and Ctrl+Y restores it.',
     position: 'bottom',
   },
   {
@@ -47,7 +64,7 @@ const STEPS = [
     view: 'map',
     selector: null,
     title: 'Seal or Cancel',
-    body: "While drawing, 'Seal Ink' commits the shape. '✕ Cancel' discards it. Press Escape at any time to cancel. Double-click any drawn shape to open its full record.",
+    body: "'Seal Ink' commits the shape and creates a Chronicle entry. '✕ Cancel' discards it. Press Escape at any time to cancel. Double-click any drawn shape to open its full record.",
     position: 'center',
   },
   {
@@ -57,18 +74,20 @@ const STEPS = [
     body: 'Capture the entire map canvas — background image and all drawn shapes — as a PNG file. Great for sharing your world.',
     position: 'bottom',
   },
+  // ── Record Hall ───────────────────────────────────────
   {
     view: 'recordhall',
     selector: '[data-tutorial="record-list"]',
     title: 'Hall of Records',
-    body: 'Every drawn territory and landmark gets a Chronicle entry here. Add lore, images, key figures, and link records to each other.',
+    body: 'Every drawn shape gets a Chronicle entry here. Add lore, key figures, and link records using [[id|name]] syntax. Export individual entries or the full chronicle as Markdown, or open the Web of Chronicles to see how records connect.',
     position: 'bottom',
   },
+  // ── Journal ───────────────────────────────────────────
   {
     view: 'journal',
     selector: '[data-tutorial="journal-sidebar"]',
     title: 'The Journal',
-    body: 'A free-form writing space for your world. Create nested entries, write in Markdown, and link directly to your Chronicle records.',
+    body: 'A free-form writing space for your world. Create nested entries, write in Markdown, and use the search bar to filter entries by title or content.',
     position: 'right',
   },
 ];
