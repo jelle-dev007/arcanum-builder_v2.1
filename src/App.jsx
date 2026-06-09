@@ -3,6 +3,8 @@ import { useTheme } from './ThemeContext';
 import MapComponent from './MapComponent';
 import RecordHall from './RecordHall';
 import Journal from './Journal';
+import BracketCorners from './BracketCorners';
+import TutorialOverlay from './TutorialOverlay';
 
 const hexToRgbObj = (hex) => {
   if (!hex) return { r: 201, g: 168, b: 76 };
@@ -184,41 +186,6 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
   return <canvas ref={canvasRef} className="fixed inset-0 w-full h-full pointer-events-none z-0" />;
 };
 
-// ================= BRACKET CORNER COMPONENT =================
-// The signature etched-corner frame element
-const BracketCorners = ({ size = 14, opacity = 0.7 }) => (
-    <>
-      {/* TL */}
-      <span className="absolute top-0 left-0 pointer-events-none" style={{
-        width: size, height: size,
-        borderTop: `1px solid rgba(var(--color-primary), ${opacity})`,
-        borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`,
-        zIndex: 2
-      }} />
-      {/* TR */}
-      <span className="absolute top-0 right-0 pointer-events-none" style={{
-        width: size, height: size,
-        borderTop: `1px solid rgba(var(--color-primary), ${opacity})`,
-        borderRight: `1px solid rgba(var(--color-primary), ${opacity})`,
-        zIndex: 2
-      }} />
-      {/* BL */}
-      <span className="absolute bottom-0 left-0 pointer-events-none" style={{
-        width: size, height: size,
-        borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`,
-        borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`,
-        zIndex: 2
-      }} />
-      {/* BR */}
-      <span className="absolute bottom-0 right-0 pointer-events-none" style={{
-        width: size, height: size,
-        borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`,
-        borderRight: `1px solid rgba(var(--color-primary), ${opacity})`,
-        zIndex: 2
-      }} />
-    </>
-);
-
 // ================= MAIN APP =================
 function App() {
   const { themeId, setThemeId, allThemes } = useTheme();
@@ -227,6 +194,7 @@ function App() {
   const [currentPoints, setCurrentPoints] = useState([]);
   const [navigatedRecordId, setNavigatedRecordId] = useState(null);
   const [navHistory, setNavHistory] = useState([]);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const activeTheme = allThemes?.find(t => t.id === themeId) || {
     primary: '#c9a84c', bgMain: '5, 5, 8', bgSurface: '11, 11, 16'
@@ -252,12 +220,14 @@ function App() {
   const [editingPlaneId, setEditingPlaneId]     = useState(null);
   const [editingPlaneName, setEditingPlaneName] = useState('');
   const [importError, setImportError]     = useState('');
+  const [removingIds, setRemovingIds]     = useState(new Set());
   const importFileRef = useRef(null);
   const colorStateRef = useRef(null);
   const animRafRef    = useRef(null);
 
   useEffect(() => { localStorage.setItem('world_archive_maps', JSON.stringify(maps)); }, [maps]);
   useEffect(() => { localStorage.setItem('world_archive_active_id', activeMapId); }, [activeMapId]);
+  useEffect(() => { if (!localStorage.getItem('arcanum_tutorial_seen')) setShowTutorial(true); }, []);
 
   const currentMap = maps.find(m => m.id === activeMapId) || maps[0] || { id: 'empty', name: 'VOID', data: [] };
   const mapData = currentMap.data;
@@ -302,24 +272,15 @@ function App() {
 
   const deleteMap = (e, idToDelete) => {
     e.stopPropagation();
-    const isLast = maps.length === 1;
-    const message = isLast
-      ? "Reset this plane and clear all its records and journal entries? A blank plane will take its place."
-      : "Sever this plane and all its chronicle data from the archive?";
-    if (window.confirm(message)) {
-      localStorage.removeItem(`arcanum_journal_${idToDelete}`);
-      if (isLast) {
-        const freshId = `map-${Date.now()}`;
-        setMaps([{ id: freshId, name: 'UNNAMED PLANE', imageUrl: null, data: [] }]);
-        setActiveMapId(freshId);
-      } else {
-        setMaps(prev => prev.filter(m => m.id !== idToDelete));
-        if (activeMapId === idToDelete) {
-          const remaining = maps.filter(m => m.id !== idToDelete);
-          setActiveMapId(remaining[0]?.id || null);
-        }
-      }
-    }
+    if (!window.confirm("Sever this plane and all its chronicle data from the archive?")) return;
+    localStorage.removeItem(`arcanum_journal_${idToDelete}`);
+    const remaining = maps.filter(m => m.id !== idToDelete);
+    setRemovingIds(prev => new Set([...prev, idToDelete]));
+    setTimeout(() => {
+      setMaps(remaining);
+      setRemovingIds(prev => { const s = new Set(prev); s.delete(idToDelete); return s; });
+      if (activeMapId === idToDelete) setActiveMapId(remaining[0]?.id ?? null);
+    }, 310);
   };
 
   const handleExport = async () => {
@@ -448,10 +409,10 @@ function App() {
           <div className="orrery-wrap">
             <svg viewBox="0 0 1500 1500" fill="none" stroke={activeTheme.primary} style={{ width: '100%', height: '100%' }}>
               <circle className="orrery-s3" cx="750" cy="750" r="700" strokeOpacity=".05"/>
-              <circle className="orrery-s1" cx="750" cy="750" r="560" strokeOpacity=".08" strokeDasharray="2 14"/>
+              <circle className="orrery-s1" cx="750" cy="750" r="560" strokeOpacity=".08"/>
               <circle className="orrery-s2" cx="750" cy="750" r="430" strokeOpacity=".10"/>
-              <circle className="orrery-s3" cx="750" cy="750" r="430" strokeOpacity=".06" strokeDasharray="1 22"/>
-              <circle className="orrery-s4" cx="750" cy="750" r="300" strokeOpacity=".12" strokeDasharray="3 10"/>
+              <circle className="orrery-s3" cx="750" cy="750" r="430" strokeOpacity=".06"/>
+              <circle className="orrery-s4" cx="750" cy="750" r="300" strokeOpacity=".12"/>
               <circle className="orrery-s1" cx="750" cy="750" r="195" strokeOpacity=".14"/>
               <g className="orrery-s2"><circle cx="750" cy="320" r="4" fill="#6fa8a3" stroke="none" opacity=".7"/></g>
               <g className="orrery-s4"><circle cx="750" cy="450" r="3" fill={activeTheme.primary} stroke="none" opacity=".8"/></g>
@@ -576,8 +537,23 @@ function App() {
             )}
           </div>
 
-          {/* Right — Scry mode toggle */}
-          <div className="flex items-center justify-end justify-self-end">
+          {/* Right — Tutorial + Scry mode toggle */}
+          <div className="flex items-center justify-end justify-self-end gap-3">
+            <button
+                onClick={() => setShowTutorial(true)}
+                title="Open tutorial"
+                className="font-mono tracking-[0.2em] border transition-all duration-300"
+                style={{
+                  fontSize: 11,
+                  padding: '9px 14px',
+                  borderRadius: '2px',
+                  borderColor: 'rgba(var(--color-primary), 0.18)',
+                  color: 'rgba(var(--color-primary), 0.5)',
+                  background: 'rgba(var(--color-primary), 0.04)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.5)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.18)'; }}
+            >?</button>
             <button
                 onClick={() => setIsFocusMode(!isFocusMode)}
                 className="font-mono tracking-[0.3em] uppercase border transition-all duration-500 scry-chamfer"
@@ -649,14 +625,14 @@ function App() {
                     <span className="field-label" style={{ display: 'block', marginBottom: 10 }}>REGISTERED PLANES</span>
                     <span className="font-display" style={{ fontSize: 23, letterSpacing: '.08em', color: 'rgb(var(--color-primary))' }}>
                       {maps.length === 1 ? 'One plane' : `${maps.length} planes`} bound to the archive
-                      {currentMap && (
-                        <em style={{ fontStyle: 'normal', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, letterSpacing: '.28em', color: '#6fa8a3', marginLeft: 16 }}>
-                          ACTIVE · {currentMap.name}
-                        </em>
-                      )}
                     </span>
+                    {currentMap && maps.length > 0 && (
+                      <div className="font-mono" style={{ fontSize: 10, letterSpacing: '.28em', color: '#6fa8a3', marginTop: 6 }}>
+                        ACTIVE PLANE · {currentMap.name || '—'}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: 'flex', gap: 14 }}>
+                  <div data-tutorial="import-export" style={{ display: 'flex', gap: 14 }}>
                     <input ref={importFileRef} type="file" accept=".json" onChange={handleImportFile} className="hidden"/>
                     <button onClick={() => importFileRef.current?.click()} className="ghost-btn">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -682,7 +658,7 @@ function App() {
                 )}
 
                 {/* ===== PLANES GRID ===== */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 26, alignItems: 'stretch' }}>
+                <div data-tutorial="planes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 26, alignItems: 'stretch' }}>
                   {maps.map((m, idx) => {
                     const isActive = m.id === activeMapId;
                     const entryCount = m.data?.length || 0;
@@ -694,7 +670,7 @@ function App() {
                         role="button"
                         tabIndex={0}
                         onKeyDown={e => e.key === 'Enter' && !isEditing && handleSelectPlane(m.id)}
-                        className="home-card card-arcane group relative text-left transition-all duration-500 overflow-hidden cursor-pointer"
+                        className={`home-card card-arcane group relative text-left transition-all duration-500 overflow-hidden cursor-pointer${removingIds.has(m.id) ? ' home-card-exit' : ''}`}
                         style={{
                           animationDelay: `${idx * 0.06}s`,
                           borderRadius: 0,
@@ -758,7 +734,7 @@ function App() {
                               </button>
                               <button
                                 onClick={(e) => deleteMap(e, m.id)}
-                                title={maps.length > 1 ? "Remove plane" : "Reset plane to blank slate"}
+                                title={maps.length > 1 ? "Remove plane" : "Clear this plane"}
                                 className="font-mono text-[14px] transition-colors duration-200"
                                 style={{ color: 'rgba(220, 80, 80, 0.55)' }}
                                 onMouseEnter={e => e.currentTarget.style.color = 'rgba(248, 113, 113, 1)'}
@@ -784,6 +760,7 @@ function App() {
                   {/* Conjure new plane */}
                   {!isAddingPlane ? (
                     <button
+                      key={`conjure-${maps.length}`}
                       onClick={() => setIsAddingPlane(true)}
                       className="home-card newplane-card"
                       style={{ animationDelay: `${maps.length * 0.06}s` }}
@@ -935,6 +912,15 @@ function App() {
           </div>
 
         </main>
+
+      {showTutorial && (
+        <TutorialOverlay
+          currentView={view}
+          onNavigate={(v) => { setView(v); setNavHistory([]); }}
+          onFinish={() => setShowTutorial(false)}
+          isFirstLaunch={!localStorage.getItem('arcanum_tutorial_seen')}
+        />
+      )}
       </div>
   );
 }

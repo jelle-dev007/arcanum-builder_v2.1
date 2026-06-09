@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
+import BracketCorners from './BracketCorners';
+import { preprocessLinks } from './utils/links';
 
 // ── Markdown toolbar button ───────────────────────────────────────────────────
 const TBtn = ({ label, title, onClick }) => (
@@ -21,20 +23,6 @@ const TBtn = ({ label, title, onClick }) => (
   >
     {label}
   </button>
-);
-
-// ── Link syntax preprocessor ─────────────────────────────────────────────────
-const preprocessLinks = (text) =>
-  (text || '').replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '[$2](chronicle://$1)');
-
-// Shared bracket corners component
-const BracketCorners = ({ size = 14, opacity = 0.7 }) => (
-    <>
-      <span className="absolute top-0 left-0 pointer-events-none" style={{ width: size, height: size, borderTop: `1px solid rgba(var(--color-primary), ${opacity})`, borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
-      <span className="absolute top-0 right-0 pointer-events-none" style={{ width: size, height: size, borderTop: `1px solid rgba(var(--color-primary), ${opacity})`, borderRight: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
-      <span className="absolute bottom-0 left-0 pointer-events-none" style={{ width: size, height: size, borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`, borderLeft: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
-      <span className="absolute bottom-0 right-0 pointer-events-none" style={{ width: size, height: size, borderBottom: `1px solid rgba(var(--color-primary), ${opacity})`, borderRight: `1px solid rgba(var(--color-primary), ${opacity})`, zIndex: 2 }} />
-    </>
 );
 
 const RecordHall = ({
@@ -689,7 +677,7 @@ const RecordHall = ({
 
         {/* ROOT / SEARCH RESULTS */}
         {folderPath.length === 0 && (
-            <div className="space-y-3 max-w-5xl mx-auto">
+            <div data-tutorial="record-list" className="space-y-3 max-w-5xl mx-auto">
               <div className="flex items-center gap-3 px-1">
                 <div className="mote" />
                 <span className="field-label">

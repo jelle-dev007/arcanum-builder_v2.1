@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { CANVAS_W, CANVAS_H } from './constants';
 
-const CLOSE_RADIUS = 10; // canvas units — clicking the first node within this radius seals the shape
+const CLOSE_RADIUS = 10;
 
 const DrawingLayer = ({
   width, height,
@@ -22,8 +23,8 @@ const DrawingLayer = ({
 
   const getCanvasCoordinates = (e, currentTarget) => {
     const rect = currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 1200;
-    const y = ((e.clientY - rect.top) / rect.height) * 800;
+    const x = ((e.clientX - rect.left) / rect.width) * CANVAS_W;
+    const y = ((e.clientY - rect.top) / rect.height) * CANVAS_H;
     return { x, y };
   };
 
@@ -146,7 +147,7 @@ const DrawingLayer = ({
 
   return (
     <svg
-      viewBox="0 0 1200 800"
+      viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
       width="100%" height="100%"
       onMouseMove={handleSVGMouseMove}
       onMouseUp={handleSVGMouseUp}
@@ -191,7 +192,7 @@ const DrawingLayer = ({
 
       {/* 0. INVISIBLE INTERCEPTOR LAYER */}
       <rect
-        width={1200} height={800}
+        width={CANVAS_W} height={CANVAS_H}
         fill="black" fillOpacity={0}
         style={{ pointerEvents: isDrawingMode ? 'all' : 'none', cursor: nearFirstNode ? 'pointer' : 'crosshair' }}
         onClick={handleMapClick}
@@ -202,8 +203,8 @@ const DrawingLayer = ({
         <circle cx={400} cy={400} r={100} />
         <circle cx={400} cy={400} r={200} />
         <circle cx={400} cy={400} r={300} strokeDasharray="10,20" />
-        <line x1={0} y1={400} x2={1200} y2={400} />
-        <line x1={400} y1={0} x2={400} y2={800} />
+        <line x1={0} y1={400} x2={CANVAS_W} y2={400} />
+        <line x1={400} y1={0} x2={400} y2={CANVAS_H} />
       </g>
 
       {/* 1. TERRITORY REGIONS */}
@@ -256,6 +257,34 @@ const DrawingLayer = ({
         if (!entry.points || entry.type !== 'road') return null;
         const uniqueColor = entry.color || 'rgb(var(--color-primary))';
         const isReshapingThis = reshapeTargetId === entry.id;
+        const lineStyle = entry.lineStyle || 'solid';
+        const evtProps = {
+          style: { pointerEvents: isDrawingMode ? 'none' : 'auto', cursor: 'pointer' },
+          onMouseMove: (e) => !reshapeTargetId && onHoverEntry(e, entry),
+          onMouseLeave: onLeaveEntry,
+          onClick: (e) => { e.stopPropagation(); onClickEntry(entry); },
+          onDoubleClick: (e) => { e.stopPropagation(); onDoubleClickEntry(entry); },
+        };
+
+        const getDash = (style) => {
+          if (isReshapingThis) return '6,4';
+          if (style === 'dashed') return '10,6';
+          if (style === 'dotted') return '2,5';
+          return 'none';
+        };
+
+        if (lineStyle === 'double') {
+          return (
+            <g key={entry.id} {...evtProps}>
+              <path d={pointsToPath(entry.points, false)} fill="none" stroke={uniqueColor}
+                strokeWidth={isReshapingThis ? 9 : 7} strokeDasharray={isReshapingThis ? '6,4' : 'none'}
+                filter="url(#leylineGlow)" />
+              <path d={pointsToPath(entry.points, false)} fill="none" stroke="rgba(0,0,0,0.85)"
+                strokeWidth={isReshapingThis ? 5 : 3} strokeDasharray={isReshapingThis ? '6,4' : 'none'}
+                style={{ pointerEvents: 'none' }} />
+            </g>
+          );
+        }
 
         return (
           <path
@@ -264,13 +293,9 @@ const DrawingLayer = ({
             fill="none"
             stroke={uniqueColor}
             strokeWidth={isReshapingThis ? 6 : 4}
-            strokeDasharray={isReshapingThis ? "6,4" : "none"}
+            strokeDasharray={getDash(lineStyle)}
             filter="url(#leylineGlow)"
-            style={{ pointerEvents: isDrawingMode ? 'none' : 'auto', cursor: 'pointer' }}
-            onMouseMove={(e) => !reshapeTargetId && onHoverEntry(e, entry)}
-            onMouseLeave={onLeaveEntry}
-            onClick={(e) => { e.stopPropagation(); onClickEntry(entry); }}
-            onDoubleClick={(e) => { e.stopPropagation(); onDoubleClickEntry(entry); }}
+            {...evtProps}
           />
         );
       })}

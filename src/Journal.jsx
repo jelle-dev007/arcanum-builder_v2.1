@@ -1,9 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
-
-const preprocessLinks = (text) =>
-  (text || '').replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '[$2](chronicle://$1)');
+import { preprocessLinks } from './utils/links';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -330,6 +328,7 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
       {/* ── Sidebar ───────────────────────────────────────────────────── */}
       {showSidebar && (
         <div
+          data-tutorial="journal-sidebar"
           className="flex flex-col flex-shrink-0"
           style={{
             width: 258,
