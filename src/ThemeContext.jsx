@@ -37,6 +37,14 @@ export const ThemeProvider = ({ children }) => {
       primary: '#c96b5a',
       bgMain: '10, 3, 3',
       bgSurface: '18, 5, 5'
+    },
+    // LUNAR VEIL — Pearl moonlight on deep moonless sky.
+    {
+      id: 'lunar',
+      name: 'Lunar Veil',
+      primary: '#d0ccc6',
+      bgMain: '4, 4, 7',
+      bgSurface: '9, 9, 15'
     }
   ];
 

@@ -19,10 +19,17 @@ const hexToRgbString = (hex) => {
   return `${obj.r}, ${obj.g}, ${obj.b}`;
 };
 
+const parseBg = (str) => {
+  const [r = 5, g = 5, b = 8] = (str || '5, 5, 8').split(',').map(Number);
+  return { r, g, b };
+};
+
 // ================= ASTRAL HALO BACKGROUND =================
 const AstralHaloBackground = ({ activeThemeHex }) => {
   const canvasRef = useRef(null);
   const currentColor = useRef(hexToRgbObj(activeThemeHex));
+  const hexRef = useRef(activeThemeHex);
+  useEffect(() => { hexRef.current = activeThemeHex; }, [activeThemeHex]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -80,7 +87,7 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
     const draw = () => {
       ctx.clearRect(0, 0, width, height);
 
-      const targetRgb = hexToRgbObj(activeThemeHex);
+      const targetRgb = hexToRgbObj(hexRef.current);
       currentColor.current.r += (targetRgb.r - currentColor.current.r) * 0.015;
       currentColor.current.g += (targetRgb.g - currentColor.current.g) * 0.015;
       currentColor.current.b += (targetRgb.b - currentColor.current.b) * 0.015;
@@ -120,18 +127,6 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
         ctx.fill();
         ctx.restore();
       });
-
-      // Proximity torch — soft cursor aura
-      if (mouse.smoothX > -1000) {
-        const torchGrad = ctx.createRadialGradient(
-            mouse.smoothX, mouse.smoothY, 0,
-            mouse.smoothX, mouse.smoothY, 420
-        );
-        torchGrad.addColorStop(0, `rgba(${rgbStr}, 0.04)`);
-        torchGrad.addColorStop(1, `rgba(${rgbStr}, 0)`);
-        ctx.fillStyle = torchGrad;
-        ctx.fillRect(0, 0, width, height);
-      }
 
       // Orbital rings with proximity glow
       rings.forEach((r) => {
@@ -183,7 +178,7 @@ const AstralHaloBackground = ({ activeThemeHex }) => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseleave', onMouseLeave);
     };
-  }, [activeThemeHex]);
+  }, []);
 
   return <canvas ref={canvasRef} className="fixed inset-0 w-full h-full pointer-events-none z-0" />;
 };
@@ -253,6 +248,8 @@ function App() {
   const [newPlaneName, setNewPlaneName]   = useState('');
   const [importError, setImportError]     = useState('');
   const importFileRef = useRef(null);
+  const colorStateRef = useRef(null);
+  const animRafRef    = useRef(null);
 
   useEffect(() => { localStorage.setItem('world_archive_maps', JSON.stringify(maps)); }, [maps]);
   useEffect(() => { localStorage.setItem('world_archive_active_id', activeMapId); }, [activeMapId]);
@@ -346,22 +343,84 @@ function App() {
 
   useEffect(() => {
     if (!activeTheme) return;
-    const primaryRgbStr = hexToRgbString(activeTheme.primary);
-    document.documentElement.style.setProperty('--color-primary', primaryRgbStr);
-    document.documentElement.style.setProperty('--color-bg-main', activeTheme.bgMain || '5, 5, 8');
-    document.documentElement.style.setProperty('--color-bg-surface', activeTheme.bgSurface || '11, 11, 16');
+    const root = document.documentElement;
+    const setVars = (p, m, s) => {
+      root.style.setProperty('--color-primary',      `${Math.round(p.r)}, ${Math.round(p.g)}, ${Math.round(p.b)}`);
+      root.style.setProperty('--color-bg-main',      `${Math.round(m.r)}, ${Math.round(m.g)}, ${Math.round(m.b)}`);
+      root.style.setProperty('--color-bg-surface',   `${Math.round(s.r)}, ${Math.round(s.g)}, ${Math.round(s.b)}`);
+      const sr = Math.round(p.r + (255 - p.r) * 0.45);
+      const sg = Math.round(p.g + (255 - p.g) * 0.45);
+      const sb = Math.round(p.b + (255 - p.b) * 0.45);
+      root.style.setProperty('--color-primary-soft', `${sr}, ${sg}, ${sb}`);
+    };
+
+    const tp = hexToRgbObj(activeTheme.primary);
+    const tm = parseBg(activeTheme.bgMain);
+    const ts = parseBg(activeTheme.bgSurface);
+
+    // First mount — snap immediately, no animation
+    if (!colorStateRef.current) {
+      colorStateRef.current = { p: { ...tp }, m: { ...tm }, s: { ...ts } };
+      setVars(tp, tm, ts);
+      return;
+    }
+
+    if (animRafRef.current) cancelAnimationFrame(animRafRef.current);
+
+    const SPEED = 0.04;
+    const EPS   = 0.4;
+    const lerp  = (a, b) => a + (b - a) * SPEED;
+
+    const tick = () => {
+      const c = colorStateRef.current;
+      c.p.r = lerp(c.p.r, tp.r); c.p.g = lerp(c.p.g, tp.g); c.p.b = lerp(c.p.b, tp.b);
+      c.m.r = lerp(c.m.r, tm.r); c.m.g = lerp(c.m.g, tm.g); c.m.b = lerp(c.m.b, tm.b);
+      c.s.r = lerp(c.s.r, ts.r); c.s.g = lerp(c.s.g, ts.g); c.s.b = lerp(c.s.b, ts.b);
+      setVars(c.p, c.m, c.s);
+      const moving =
+        Math.abs(c.p.r - tp.r) > EPS || Math.abs(c.p.g - tp.g) > EPS || Math.abs(c.p.b - tp.b) > EPS ||
+        Math.abs(c.m.r - tm.r) > EPS || Math.abs(c.m.g - tm.g) > EPS || Math.abs(c.m.b - tm.b) > EPS ||
+        Math.abs(c.s.r - ts.r) > EPS || Math.abs(c.s.g - ts.g) > EPS || Math.abs(c.s.b - ts.b) > EPS;
+      if (moving) animRafRef.current = requestAnimationFrame(tick);
+    };
+
+    animRafRef.current = requestAnimationFrame(tick);
+    return () => { if (animRafRef.current) cancelAnimationFrame(animRafRef.current); };
   }, [activeTheme]);
 
   return (
       <div
-          className="min-h-screen text-gray-300 relative transition-colors duration-1000 ease-in-out overflow-hidden"
-          style={{ backgroundColor: `rgb(${activeTheme.bgMain || '5, 5, 8'})` }}
+          className="min-h-screen text-gray-300 relative overflow-hidden"
+          style={{ backgroundColor: 'rgb(var(--color-bg-main))' }}
       >
         <AstralHaloBackground activeThemeHex={activeTheme.primary || '#c9a84c'} />
 
+        {/* ============ ORRERY — fixed concentric rings behind home view ============ */}
+        {view === 'home' && (
+          <div className="orrery-wrap">
+            <svg viewBox="0 0 1500 1500" fill="none" stroke={activeTheme.primary} style={{ width: '100%', height: '100%' }}>
+              <circle className="orrery-s3" cx="750" cy="750" r="700" strokeOpacity=".05"/>
+              <circle className="orrery-s1" cx="750" cy="750" r="560" strokeOpacity=".08" strokeDasharray="2 14"/>
+              <circle className="orrery-s2" cx="750" cy="750" r="430" strokeOpacity=".10"/>
+              <circle className="orrery-s3" cx="750" cy="750" r="430" strokeOpacity=".06" strokeDasharray="1 22"/>
+              <circle className="orrery-s4" cx="750" cy="750" r="300" strokeOpacity=".12" strokeDasharray="3 10"/>
+              <circle className="orrery-s1" cx="750" cy="750" r="195" strokeOpacity=".14"/>
+              <g className="orrery-s2"><circle cx="750" cy="320" r="4" fill="#6fa8a3" stroke="none" opacity=".7"/></g>
+              <g className="orrery-s4"><circle cx="750" cy="450" r="3" fill={activeTheme.primary} stroke="none" opacity=".8"/></g>
+              <g className="orrery-s3"><circle cx="750" cy="190" r="5" fill={activeTheme.primary} stroke="none" opacity=".9"/></g>
+              <g className="orrery-s1" strokeOpacity=".04">
+                <line x1="750" y1="555" x2="750" y2="945"/>
+                <line x1="555" y1="750" x2="945" y2="750"/>
+                <line x1="612" y1="612" x2="888" y2="888"/>
+                <line x1="888" y1="612" x2="612" y2="888"/>
+              </g>
+            </svg>
+          </div>
+        )}
+
         {/* ============ HEADER ============ */}
         <header className="relative z-50 header-arcane grain-surface px-8 py-0 grid grid-cols-3 items-stretch transition-colors duration-1000"
-                style={{ minHeight: '62px' }}>
+                style={{ minHeight: '74px' }}>
 
           {/* Left — Sigil + Wordmark + Theme dots */}
           <div className="flex items-center gap-5 justify-self-start">
@@ -386,10 +445,10 @@ function App() {
               </div>
               <div className="flex flex-col leading-tight">
               <span
-                  className="font-display tracking-[0.22em] text-[13px] transition-colors duration-1000"
-                  style={{ color: 'rgb(var(--color-primary))' }}
+                  className="font-display wm-breathe tracking-[0.42em] text-[13px] transition-colors duration-1000"
+                  style={{ color: activeTheme.primary }}
               >
-                Arcanum
+                ARCANUM
               </span>
                 <span className="font-mono tracking-[0.18em] text-[7px] text-gray-600 uppercase mt-0.5 max-w-[140px] truncate">
                 {currentMap?.name || 'Planar Archive'}
@@ -430,10 +489,10 @@ function App() {
                             key={tab.id}
                             onClick={() => setView(tab.id)}
                             className="relative flex flex-col items-center justify-center px-7 py-0 outline-none transition-all duration-500 group"
-                            style={{ height: '62px' }}
+                            style={{ height: '74px' }}
                         >
                     <span
-                        className="font-display text-[11px] tracking-[0.18em] transition-colors duration-500"
+                        className="font-display text-[13px] tracking-[0.18em] whitespace-nowrap transition-colors duration-500"
                         style={{
                           color: isActive ? 'rgb(var(--color-primary))' : '#4b5563',
                           fontStyle: 'normal',
@@ -473,15 +532,17 @@ function App() {
           <div className="flex items-center justify-end justify-self-end">
             <button
                 onClick={() => setIsFocusMode(!isFocusMode)}
-                className="relative font-mono text-[9px] px-5 py-2 tracking-[0.22em] uppercase border transition-all duration-500 proximity-glow"
+                className="font-mono tracking-[0.3em] uppercase border transition-all duration-500 scry-chamfer"
                 style={{
-                  borderColor: isFocusMode ? 'rgba(var(--color-primary), 0.5)' : 'rgba(var(--color-primary), 0.12)',
-                  color: isFocusMode ? 'rgb(var(--color-primary))' : '#4b5563',
-                  borderRadius: '2px',
+                  fontSize: 11,
+                  padding: '11px 22px',
+                  borderColor: isFocusMode ? 'rgba(var(--color-primary), 0.5)' : 'rgba(var(--color-primary), 0.18)',
+                  color: 'rgb(var(--color-primary))',
+                  background: isFocusMode ? 'rgba(var(--color-primary), 0.12)' : 'rgba(var(--color-primary), 0.04)',
+                  boxShadow: isFocusMode ? '0 0 22px rgba(var(--color-primary), 0.25)' : 'none',
                 }}
             >
-              <BracketCorners size={5} opacity={isFocusMode ? 0.8 : 0.3} />
-              {isFocusMode ? 'Return' : 'Scry'}
+              ◎ {isFocusMode ? 'RETURN' : 'SCRY'}
             </button>
           </div>
         </header>
@@ -492,283 +553,258 @@ function App() {
         </div>
 
         {/* ============ MAIN VIEWPORT ============ */}
-        <main className="flex-1 w-full h-[calc(100vh-63px)] overflow-hidden relative">
+        <main className="flex-1 w-full h-[calc(100vh-75px)] overflow-hidden relative">
 
           {/* VIEW: HOME / SANCTUM */}
           {view === 'home' && (
-              <div className="w-full h-full overflow-y-auto arcane-scroll px-6 py-12 slide-in-left">
-                <div className="max-w-4xl mx-auto space-y-12">
+            <div className="w-full h-full overflow-y-auto arcane-scroll slide-in-left">
+              <div className="max-w-5xl mx-auto px-12 relative" style={{ zIndex: 2 }}>
 
-                  {/* Hero — Celestial sigil + wordmark */}
-                  <div className="flex flex-col items-center gap-4 pt-2 sigil-breathe">
-                    {/* Large hero sigil */}
-                    <div className="relative flex items-center justify-center w-16 h-16">
-                      <div
-                          className="absolute w-full h-full rounded-full animate-cosmic-rotate"
-                          style={{ border: '1px solid rgba(var(--color-primary), 0.25)' }}
-                      />
-                      <div
-                          className="absolute w-10 h-10 rotate-45"
-                          style={{ border: '1px solid rgba(var(--color-primary), 0.4)' }}
-                      />
-                      <div
-                          className="absolute w-5 h-5 rounded-full animate-cosmic-reverse"
-                          style={{ border: '0.5px solid rgba(var(--color-primary), 0.3)' }}
-                      />
-                      <div
-                          className="w-2 h-2 rounded-full"
-                          style={{
-                            backgroundColor: 'rgb(var(--color-primary))',
-                            boxShadow: '0 0 16px 3px rgba(var(--color-primary), 0.5)'
-                          }}
-                      />
-                    </div>
-                    <h1
-                        className="font-display text-4xl tracking-[0.3em]"
-                        style={{
-                          color: 'rgb(var(--color-primary))',
-                          textShadow: '0 0 40px rgba(var(--color-primary), 0.3)'
-                        }}
-                    >
-                      Arcanum
-                    </h1>
-                    <div className="flex items-center gap-3">
-                      <div className="mote" />
-                      <p className="font-mono text-[8px] tracking-[0.45em] uppercase text-gray-600">
-                        Planar Archive — Sanctum Interface
-                      </p>
-                      <div className="mote" />
-                    </div>
+                {/* ===== HERO ===== */}
+                <section className="text-center" style={{ padding: '72px 0 30px' }}>
+                  <svg
+                    className="sigil-breathe"
+                    viewBox="0 0 100 100" fill="none"
+                    style={{ width: 96, height: 96, margin: '0 auto 26px', display: 'block' }}
+                  >
+                    <circle cx="50" cy="50" r="46" stroke={activeTheme.primary} strokeWidth=".8" opacity=".3"/>
+                    <circle cx="50" cy="50" r="46" stroke="rgb(var(--color-primary))" strokeWidth=".8" strokeDasharray="1 9" opacity=".8" className="crest-ring"/>
+                    <rect x="50" y="14" width="51" height="51" transform="rotate(45 50 14)" stroke={activeTheme.primary} strokeWidth="1" opacity=".55"/>
+                    <rect x="50" y="26" width="34" height="34" transform="rotate(45 50 26)" stroke="rgb(var(--color-primary))" strokeWidth="1.3"/>
+                    <circle cx="50" cy="50" r="3.4" fill={activeTheme.primary} className="core-pulse-elem"/>
+                    <circle cx="50" cy="50" r="9" stroke="rgb(var(--color-primary))" strokeWidth=".8" opacity=".6"/>
+                  </svg>
+
+                  <h1 className="arcanum-title">ARCANUM</h1>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 22 }}>
+                    <div className="rule-gold" style={{ width: 60 }}/>
+                    <span className="font-mono" style={{ fontSize: 11, letterSpacing: '0.4em', color: 'rgba(var(--color-primary-soft), .62)' }}>
+                      SANCTUM · THE INNER ARCHIVE
+                    </span>
+                    <div className="rule-gold" style={{ width: 60 }}/>
                   </div>
 
-                  {/* Divider */}
-                  <div className="rule-gold" />
+                  <p className="font-soft" style={{ fontStyle: 'italic', fontSize: 19, color: 'rgba(var(--color-primary-soft), .62)', marginTop: 24 }}>
+                    Where the worlds you've made are kept, charted, and remembered.
+                  </p>
+                </section>
 
-                  {/* Planes manager */}
-                  <div className="space-y-5">
-                    <div className="flex items-end justify-between">
-                      <div>
-                        <span className="field-label">Registered Planes</span>
-                        <p className="font-display text-sm tracking-wide mt-1" style={{ color: 'rgb(var(--color-primary))' }}>
-                          {maps.length} plane{maps.length !== 1 ? 's' : ''} in the archive
-                          {currentMap && (
-                              <span className="font-mono text-[9px] text-gray-600 ml-3" style={{ fontStyle: 'normal' }}>
-                          active: {currentMap.name}
-                        </span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <input ref={importFileRef} type="file" accept=".json" onChange={handleImportFile} className="hidden" />
-                        <button
-                            onClick={() => importFileRef.current?.click()}
-                            className="btn-ghost text-[9px] px-3 py-1.5"
-                        >
-                          ↑ Import
-                        </button>
-                        <button onClick={handleExport} className="btn-ghost text-[9px] px-3 py-1.5">
-                          ↓ Export
-                        </button>
-                      </div>
-                    </div>
+                {/* ===== SECTION HEADER ===== */}
+                <div style={{
+                  display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+                  marginTop: 54, marginBottom: 26,
+                  borderBottom: '1px solid rgba(var(--color-primary), 0.10)',
+                  paddingBottom: 18,
+                }}>
+                  <div>
+                    <span className="field-label" style={{ display: 'block', marginBottom: 10 }}>REGISTERED PLANES</span>
+                    <span className="font-display" style={{ fontSize: 23, letterSpacing: '.08em', color: 'rgb(var(--color-primary))' }}>
+                      {maps.length === 1 ? 'One plane' : `${maps.length} planes`} bound to the archive
+                      {currentMap && (
+                        <em style={{ fontStyle: 'normal', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, letterSpacing: '.28em', color: '#6fa8a3', marginLeft: 16 }}>
+                          ACTIVE · {currentMap.name}
+                        </em>
+                      )}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 14 }}>
+                    <input ref={importFileRef} type="file" accept=".json" onChange={handleImportFile} className="hidden"/>
+                    <button onClick={() => importFileRef.current?.click()} className="ghost-btn">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M12 19V6m0 0l-6 6m6-6l6 6" transform="rotate(180 12 12)"/>
+                      </svg>
+                      IMPORT
+                    </button>
+                    <button onClick={handleExport} className="ghost-btn">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M12 5v13m0 0l-6-6m6 6l6-6"/>
+                      </svg>
+                      EXPORT
+                    </button>
+                  </div>
+                </div>
 
-                    {importError && (
-                        <div
-                            className="rounded px-4 py-2 font-mono text-[10px] text-red-400 flex justify-between items-center"
-                            style={{ background: 'rgba(153,27,27,0.08)', border: '1px solid rgba(153,27,27,0.25)' }}
-                        >
-                          {importError}
-                          <button onClick={() => setImportError('')} className="text-red-600 hover:text-red-400 ml-4">✕</button>
-                        </div>
-                    )}
+                {importError && (
+                  <div className="font-mono text-[10px] text-red-400 flex justify-between items-center mb-4 px-4 py-2"
+                    style={{ background: 'rgba(153,27,27,0.08)', border: '1px solid rgba(153,27,27,0.25)' }}>
+                    {importError}
+                    <button onClick={() => setImportError('')} className="text-red-600 hover:text-red-400 ml-4">✕</button>
+                  </div>
+                )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {maps.map((m, idx) => {
-                        const isActive = m.id === activeMapId;
-                        const entryCount = m.data?.length || 0;
-                        return (
-                            <button
-                                key={m.id}
-                                onClick={() => handleSelectPlane(m.id)}
-                                className="home-card card-arcane group relative text-left p-4 transition-all duration-300 overflow-hidden"
-                                style={{
-                                  animationDelay: `${idx * 0.06}s`,
-                                  borderRadius: '4px',
-                                  background: isActive
-                                      ? `linear-gradient(135deg, rgba(var(--color-primary),0.08), rgba(var(--color-bg-surface),0.95))`
-                                      : undefined,
-                                  borderColor: isActive ? 'rgba(var(--color-primary),0.4)' : undefined,
-                                  boxShadow: isActive
-                                      ? '0 0 20px rgba(var(--color-primary),0.08), inset 0 0 12px rgba(var(--color-primary),0.03)'
-                                      : undefined,
-                                }}
-                            >
-                              <BracketCorners size={8} opacity={isActive ? 0.7 : 0.25} />
-
-                              {/* Active indicator dot */}
-                              {isActive && (
-                                  <span
-                                      className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full"
-                                      style={{
-                                        backgroundColor: 'rgb(var(--color-primary))',
-                                        boxShadow: '0 0 6px rgb(var(--color-primary))'
-                                      }}
-                                  />
-                              )}
-
-                              {/* Map thumbnail */}
-                              <div
-                                  className="w-full h-20 mb-3 overflow-hidden flex items-center justify-center"
-                                  style={{
-                                    borderRadius: '2px',
-                                    background: 'rgba(0,0,0,0.45)',
-                                    border: '1px solid rgba(var(--color-primary), 0.06)'
-                                  }}
-                              >
-                                {m.imageUrl
-                                    ? <img src={m.imageUrl} alt={m.name} className="w-full h-full object-cover opacity-65 group-hover:opacity-85 transition-opacity duration-300" />
-                                    : <span className="font-mono text-[8px] text-gray-800 uppercase tracking-widest">No map loaded</span>
-                                }
-                              </div>
-
-                              <p
-                                  className="font-display text-[11px] tracking-[0.15em] truncate"
-                                  style={{ color: isActive ? 'rgb(var(--color-primary))' : '#6b7280' }}
-                              >
-                                {m.name}
-                              </p>
-                              <p className="font-mono text-[8px] text-gray-700 mt-0.5 uppercase tracking-widest">
-                                {entryCount} entr{entryCount !== 1 ? 'ies' : 'y'}
-                              </p>
-
-                              {maps.length > 1 && (
-                                  <button
-                                      onClick={(e) => deleteMap(e, m.id)}
-                                      className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 font-mono text-[8px] text-gray-700 hover:text-red-400 transition-all duration-200 uppercase tracking-wider"
-                                  >
-                                    ✕ sever
-                                  </button>
-                              )}
-                            </button>
-                        );
-                      })}
-
-                      {/* Add plane */}
-                      {!isAddingPlane ? (
-                          <button
-                              onClick={() => setIsAddingPlane(true)}
-                              className="home-card relative flex flex-col items-center justify-center gap-2 transition-all duration-300 min-h-[148px] proximity-glow group"
-                              style={{
-                                animationDelay: `${maps.length * 0.06}s`,
-                                borderRadius: '4px',
-                                border: '1px dashed rgba(var(--color-primary), 0.12)',
-                                background: 'transparent',
-                              }}
-                          >
-                      <span
-                          className="text-2xl opacity-30 group-hover:opacity-60 transition-opacity"
-                          style={{ color: 'rgb(var(--color-primary))' }}
+                {/* ===== PLANES GRID ===== */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 26, alignItems: 'stretch' }}>
+                  {maps.map((m, idx) => {
+                    const isActive = m.id === activeMapId;
+                    const entryCount = m.data?.length || 0;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => handleSelectPlane(m.id)}
+                        className="home-card card-arcane group relative text-left transition-all duration-500 overflow-hidden"
+                        style={{
+                          animationDelay: `${idx * 0.06}s`,
+                          borderRadius: 0,
+                          padding: 18,
+                          background: isActive
+                            ? 'linear-gradient(180deg, rgba(24,22,16,.55), rgba(12,12,20,.65))'
+                            : undefined,
+                          borderColor: isActive ? 'rgba(var(--color-primary), 0.5)' : undefined,
+                          boxShadow: isActive ? '0 0 0 1px rgba(var(--color-primary),.12), 0 18px 50px rgba(0,0,0,.5)' : undefined,
+                        }}
                       >
-                        ＋
-                      </span>
-                            <span className="font-mono text-[8px] uppercase tracking-widest text-gray-700 group-hover:text-gray-500 transition-colors">
-                        New Plane
-                      </span>
-                          </button>
-                      ) : (
-                          <div
-                              className="home-card relative flex flex-col gap-3 min-h-[148px] p-4"
-                              style={{
-                                animationDelay: `${maps.length * 0.06}s`,
-                                borderRadius: '4px',
-                                border: '1px solid rgba(var(--color-primary), 0.25)',
-                                background: 'linear-gradient(145deg, rgba(var(--color-bg-surface),0.8), rgba(var(--color-bg-main),0.95))',
-                              }}
-                          >
-                            <BracketCorners size={8} opacity={0.5} />
-                            <p className="field-label">Name this plane</p>
-                            <input
-                                autoFocus
-                                value={newPlaneName}
-                                onChange={e => setNewPlaneName(e.target.value)}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') handleAddPlane();
-                                  if (e.key === 'Escape') { setIsAddingPlane(false); setNewPlaneName(''); }
-                                }}
-                                placeholder="e.g. SHADOW REALM..."
-                                className="input-arcane"
-                            />
-                            <div className="flex gap-2 mt-auto">
-                              <button
-                                  onClick={handleAddPlane}
-                                  disabled={!newPlaneName.trim()}
-                                  className="btn-primary flex-1 text-[9px]"
-                              >
-                                Manifest Plane
-                              </button>
-                              <button
-                                  onClick={() => { setIsAddingPlane(false); setNewPlaneName(''); }}
-                                  className="btn-ghost px-3 py-1.5 text-[9px]"
-                              >
-                                Cancel
-                              </button>
+                        {isActive && <div className="edge"/>}
+                        <BracketCorners size={22} opacity={isActive ? 0.65 : 0.25}/>
+
+                        {/* Map frame */}
+                        <div className="relative overflow-hidden" style={{ border: '1px solid rgba(var(--color-primary),.3)', background: '#0c1418' }}>
+                          {m.imageUrl
+                            ? <img src={m.imageUrl} alt={m.name} className="w-full object-cover transition-opacity duration-300 group-hover:opacity-90" style={{ height: 200, opacity: 0.75 }}/>
+                            : <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}>
+                                <span className="font-mono text-[8px] text-gray-800 uppercase tracking-widest">No map loaded</span>
+                              </div>
+                          }
+                          {isActive && <div className="seal-dot"/>}
+                        </div>
+
+                        {/* Meta */}
+                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '18px 6px 6px' }}>
+                          <div>
+                            <div className="font-display" style={{ fontSize: 21, letterSpacing: '.16em', color: 'rgb(var(--color-primary))' }}>
+                              {m.name}
+                            </div>
+                            <div className="font-mono" style={{ fontSize: 10, letterSpacing: '.22em', color: 'rgba(216,201,160,.42)', marginTop: 9, display: 'flex', gap: 16 }}>
+                              <span>{entryCount} ENTR{entryCount !== 1 ? 'IES' : 'Y'}</span>
+                              {isActive && <span style={{ color: '#6fa8a3' }}>ACTIVE</span>}
                             </div>
                           </div>
-                      )}
-                    </div>
-                  </div>
+                          <div className="enter-plane">ENTER PLANE →</div>
+                        </div>
 
-                  {/* Divider */}
-                  <div className="rule-gold" />
+                        {maps.length > 1 && (
+                          <button
+                            onClick={(e) => deleteMap(e, m.id)}
+                            className="absolute top-4 right-4 opacity-0 group-hover:opacity-60 hover:!opacity-100 font-mono text-[8px] text-gray-700 hover:text-red-400 transition-all duration-200 uppercase tracking-wider"
+                            style={{ zIndex: 10 }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </button>
+                    );
+                  })}
 
-                  {/* Quick-nav row */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {[
-                      {
-                        icon: '◈',
-                        title: 'Cartograph',
-                        desc: 'Navigate and annotate the active plane.',
-                        target: 'map'
-                      },
-                      {
-                        icon: '◉',
-                        title: 'Hall of Records',
-                        desc: 'Chronicle entries for the active plane.',
-                        target: 'recordhall'
-                      },
-                      {
-                        icon: '◎',
-                        title: 'Scry Mode',
-                        desc: 'Immersive view — no editing tools.',
-                        action: () => { setView('map'); setIsFocusMode(true); }
-                      },
-                    ].map((card) => (
-                        <button
-                            key={card.title}
-                            onClick={() => card.action ? card.action() : setView(card.target)}
-                            className="home-card card-arcane relative text-left p-5 transition-all duration-300 proximity-glow"
-                            style={{ borderRadius: '4px' }}
-                        >
-                          <BracketCorners size={8} opacity={0.2} />
-                          <div
-                              className="text-xl mb-3 font-mono transition-colors"
-                              style={{ color: 'rgba(var(--color-primary), 0.5)' }}
-                          >
-                            {card.icon}
-                          </div>
-                          <h3
-                              className="font-display text-[12px] tracking-[0.18em] mb-2"
-                              style={{ color: 'rgb(var(--color-primary))' }}
-                          >
-                            {card.title}
-                          </h3>
-                          <p className="font-mono text-[9px] text-gray-600 leading-relaxed">{card.desc}</p>
+                  {/* Conjure new plane */}
+                  {!isAddingPlane ? (
+                    <button
+                      onClick={() => setIsAddingPlane(true)}
+                      className="home-card newplane-card"
+                      style={{ animationDelay: `${maps.length * 0.06}s` }}
+                    >
+                      <div className="newplane-ring">
+                        <span className="newplane-plus">+</span>
+                      </div>
+                      <div className="newplane-lbl">Conjure New Plane</div>
+                    </button>
+                  ) : (
+                    <div
+                      className="home-card relative flex flex-col gap-3 p-5"
+                      style={{
+                        animationDelay: `${maps.length * 0.06}s`,
+                        border: '1px solid rgba(var(--color-primary), 0.25)',
+                        background: 'linear-gradient(145deg, rgba(var(--color-bg-surface),0.8), rgba(var(--color-bg-main),0.95))',
+                        minHeight: 300,
+                      }}
+                    >
+                      <BracketCorners size={10} opacity={0.5}/>
+                      <p className="field-label">Name this plane</p>
+                      <input
+                        autoFocus
+                        value={newPlaneName}
+                        onChange={e => setNewPlaneName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleAddPlane();
+                          if (e.key === 'Escape') { setIsAddingPlane(false); setNewPlaneName(''); }
+                        }}
+                        placeholder="e.g. SHADOW REALM..."
+                        className="input-arcane"
+                      />
+                      <div className="flex gap-2 mt-auto">
+                        <button onClick={handleAddPlane} disabled={!newPlaneName.trim()} className="btn-primary flex-1 text-[9px]">
+                          Manifest Plane
                         </button>
-                    ))}
-                  </div>
-
+                        <button onClick={() => { setIsAddingPlane(false); setNewPlaneName(''); }} className="btn-ghost px-3 py-1.5 text-[9px]">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {/* ===== RULE ===== */}
+                <div className="rule-gold" style={{ margin: '54px 0 48px' }}/>
+
+                {/* ===== MODE CARDS ===== */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, marginBottom: 72 }}>
+                  {[
+                    {
+                      glyph: (
+                        <svg viewBox="0 0 30 30" fill="none" stroke="currentColor" strokeWidth="1.3" style={{ width: 30, height: 30, marginBottom: 22 }}>
+                          <rect x="15" y="3" width="17" height="17" transform="rotate(45 15 3)"/>
+                          <circle cx="15" cy="15" r="1.6" fill="currentColor" stroke="none"/>
+                        </svg>
+                      ),
+                      title: 'CARTOGRAPH',
+                      desc: "Chart the active plane — drop pins, trace borders, and annotate the lands you've made.",
+                      target: 'map',
+                    },
+                    {
+                      glyph: (
+                        <svg viewBox="0 0 30 30" fill="none" stroke="currentColor" strokeWidth="1.3" style={{ width: 30, height: 30, marginBottom: 22 }}>
+                          <circle cx="15" cy="15" r="11"/>
+                          <circle cx="15" cy="15" r="2.4" fill="currentColor" stroke="none"/>
+                        </svg>
+                      ),
+                      title: 'HALL OF RECORDS',
+                      desc: 'Open the chronicle — characters, histories, and lore bound to this plane.',
+                      target: 'recordhall',
+                    },
+                    {
+                      glyph: (
+                        <svg viewBox="0 0 30 30" fill="none" stroke="currentColor" strokeWidth="1.3" style={{ width: 30, height: 30, marginBottom: 22 }}>
+                          <circle cx="15" cy="15" r="11"/>
+                          <circle cx="15" cy="15" r="6.5"/>
+                          <circle cx="15" cy="15" r="2" fill="currentColor" stroke="none"/>
+                        </svg>
+                      ),
+                      title: 'SCRY MODE',
+                      desc: 'Step inside. An immersive, distraction-free view of the world — nothing to edit, only to behold.',
+                      action: () => { setView('map'); setIsFocusMode(true); },
+                    },
+                  ].map((card) => (
+                    <button
+                      key={card.title}
+                      onClick={() => card.action ? card.action() : setView(card.target)}
+                      className="home-card card-arcane relative text-left overflow-hidden transition-all duration-500"
+                      style={{ padding: '30px 28px', borderRadius: 0, color: 'rgb(var(--color-primary))' }}
+                    >
+                      <div className="mode-topline"/>
+                      <div className="edge slow"/>
+                      {card.glyph}
+                      <h3 className="font-display" style={{ fontSize: 18, letterSpacing: '.16em', color: 'rgb(var(--color-primary))', marginBottom: 13 }}>
+                        {card.title}
+                      </h3>
+                      <p className="font-soft" style={{ fontSize: 16, lineHeight: 1.45, color: 'rgba(216,201,160,.62)' }}>
+                        {card.desc}
+                      </p>
+                      <span className="mode-arrow">→</span>
+                    </button>
+                  ))}
+                </div>
+
               </div>
+            </div>
           )}
 
           {/* VIEW: CARTOGRAPH */}
