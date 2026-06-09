@@ -516,8 +516,9 @@ const RecordHall = ({
                     <div className="space-y-1 md:col-span-2">
                       <label className="field-label">Landscape Attachments</label>
                       <input
-                          type="file" multiple onChange={handleImageAppend}
-                          className="font-mono text-[10px] text-gray-600 file:bg-black file:border file:border-gray-800 file:text-gray-300 file:text-[10px] file:px-3 file:py-1.5 file:rounded-sm file:cursor-pointer"
+                          type="file" multiple accept="image/*" onChange={handleImageAppend}
+                          className="font-mono text-[10px] file:font-mono file:text-[10px] file:px-3 file:py-1.5 file:rounded-sm file:cursor-pointer file:border file:uppercase file:tracking-widest"
+                          style={{ color: 'rgba(var(--color-primary-soft), 0.4)' }}
                       />
                     </div>
                     <div className="space-y-1">

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from './ThemeContext';
 import MapComponent from './MapComponent';
 import RecordHall from './RecordHall';
+import Journal from './Journal';
 
 const hexToRgbObj = (hex) => {
   if (!hex) return { r: 201, g: 168, b: 76 };
@@ -233,7 +234,8 @@ function App() {
   const tabs = [
     { id: 'home',       label: 'Sanctum' },
     { id: 'map',        label: 'Cartograph' },
-    { id: 'recordhall', label: 'Hall of Records' }
+    { id: 'recordhall', label: 'Hall of Records' },
+    { id: 'journal',    label: 'Journal' }
   ];
 
   const [maps, setMaps] = useState(() =>
@@ -246,6 +248,8 @@ function App() {
 
   const [isAddingPlane, setIsAddingPlane] = useState(false);
   const [newPlaneName, setNewPlaneName]   = useState('');
+  const [editingPlaneId, setEditingPlaneId]     = useState(null);
+  const [editingPlaneName, setEditingPlaneName] = useState('');
   const [importError, setImportError]     = useState('');
   const importFileRef = useRef(null);
   const colorStateRef = useRef(null);
@@ -286,6 +290,15 @@ function App() {
     setView('map');
   };
 
+  const handleRenameSubmit = (id) => {
+    const trimmed = editingPlaneName.trim();
+    if (trimmed) {
+      setMaps(prev => prev.map(m => m.id === id ? { ...m, name: trimmed.toUpperCase() } : m));
+    }
+    setEditingPlaneId(null);
+    setEditingPlaneName('');
+  };
+
   const deleteMap = (e, idToDelete) => {
     e.stopPropagation();
     if (maps.length === 1) {
@@ -301,12 +314,29 @@ function App() {
     }
   };
 
-  const handleExport = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(maps));
-    const a = document.createElement('a');
-    a.setAttribute("href", dataStr);
-    a.setAttribute("download", "arcanum_archive.json");
-    document.body.appendChild(a); a.click(); a.remove();
+  const handleExport = async () => {
+    const data = JSON.stringify(maps, null, 2);
+    // In Electron, use IPC so we get a native Save-As dialog
+    if (typeof window !== 'undefined' && window.require) {
+      try {
+        const { ipcRenderer } = window.require('electron');
+        await ipcRenderer.invoke('save-file', { data, filename: 'arcanum_archive.json' });
+      } catch {
+        // ipcRenderer unavailable (e.g. running plain browser) — fall through
+        const blob = new Blob([data], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = 'arcanum_archive.json';
+        a.click(); URL.revokeObjectURL(url);
+      }
+    } else {
+      // Browser fallback — Blob avoids URL-length limits on large archives
+      const blob = new Blob([data], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = 'arcanum_archive.json';
+      a.click(); URL.revokeObjectURL(url);
+    }
   };
 
   const handleImportFile = (e) => {
@@ -638,11 +668,15 @@ function App() {
                   {maps.map((m, idx) => {
                     const isActive = m.id === activeMapId;
                     const entryCount = m.data?.length || 0;
+                    const isEditing = editingPlaneId === m.id;
                     return (
-                      <button
+                      <div
                         key={m.id}
-                        onClick={() => handleSelectPlane(m.id)}
-                        className="home-card card-arcane group relative text-left transition-all duration-500 overflow-hidden"
+                        onClick={() => !isEditing && handleSelectPlane(m.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={e => e.key === 'Enter' && !isEditing && handleSelectPlane(m.id)}
+                        className="home-card card-arcane group relative text-left transition-all duration-500 overflow-hidden cursor-pointer"
                         style={{
                           animationDelay: `${idx * 0.06}s`,
                           borderRadius: 0,
@@ -669,29 +703,65 @@ function App() {
                         </div>
 
                         {/* Meta */}
-                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '18px 6px 6px' }}>
-                          <div>
-                            <div className="font-display" style={{ fontSize: 21, letterSpacing: '.16em', color: 'rgb(var(--color-primary))' }}>
-                              {m.name}
+                        <div style={{ padding: '18px 6px 6px' }}>
+                          {/* Name row */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                            {isEditing ? (
+                              <input
+                                autoFocus
+                                value={editingPlaneName}
+                                onChange={e => setEditingPlaneName(e.target.value)}
+                                onKeyDown={e => {
+                                  e.stopPropagation();
+                                  if (e.key === 'Enter') handleRenameSubmit(m.id);
+                                  if (e.key === 'Escape') { setEditingPlaneId(null); setEditingPlaneName(''); }
+                                }}
+                                onBlur={() => handleRenameSubmit(m.id)}
+                                onClick={e => e.stopPropagation()}
+                                className="input-arcane flex-1"
+                                style={{ fontSize: 17, letterSpacing: '.16em' }}
+                              />
+                            ) : (
+                              <div className="font-display" style={{ fontSize: 21, letterSpacing: '.16em', color: 'rgb(var(--color-primary))' }}>
+                                {m.name}
+                              </div>
+                            )}
+                            {/* Always-visible action icons */}
+                            <div className="flex gap-3 shrink-0" onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={() => { setEditingPlaneId(m.id); setEditingPlaneName(m.name); }}
+                                title="Rename plane"
+                                className="font-mono text-[14px] transition-colors duration-200"
+                                style={{ color: 'rgba(var(--color-primary-soft), 0.55)' }}
+                                onMouseEnter={e => e.currentTarget.style.color = 'rgb(var(--color-primary-soft))'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'rgba(var(--color-primary-soft), 0.55)'}
+                              >
+                                ✎
+                              </button>
+                              {maps.length > 1 && (
+                                <button
+                                  onClick={(e) => deleteMap(e, m.id)}
+                                  title="Remove plane"
+                                  className="font-mono text-[14px] transition-colors duration-200"
+                                  style={{ color: 'rgba(220, 80, 80, 0.55)' }}
+                                  onMouseEnter={e => e.currentTarget.style.color = 'rgba(248, 113, 113, 1)'}
+                                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(220, 80, 80, 0.55)'}
+                                >
+                                  ✕
+                                </button>
+                              )}
                             </div>
-                            <div className="font-mono" style={{ fontSize: 10, letterSpacing: '.22em', color: 'rgba(216,201,160,.42)', marginTop: 9, display: 'flex', gap: 16 }}>
+                          </div>
+                          {/* Bottom row */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 9 }}>
+                            <div className="font-mono" style={{ fontSize: 10, letterSpacing: '.22em', color: 'rgba(216,201,160,.42)', display: 'flex', gap: 16 }}>
                               <span>{entryCount} ENTR{entryCount !== 1 ? 'IES' : 'Y'}</span>
                               {isActive && <span style={{ color: '#6fa8a3' }}>ACTIVE</span>}
                             </div>
+                            {!isEditing && <div className="enter-plane">ENTER PLANE →</div>}
                           </div>
-                          <div className="enter-plane">ENTER PLANE →</div>
                         </div>
-
-                        {maps.length > 1 && (
-                          <button
-                            onClick={(e) => deleteMap(e, m.id)}
-                            className="absolute top-4 right-4 opacity-0 group-hover:opacity-60 hover:!opacity-100 font-mono text-[8px] text-gray-700 hover:text-red-400 transition-all duration-200 uppercase tracking-wider"
-                            style={{ zIndex: 10 }}
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </button>
+                      </div>
                     );
                   })}
 
@@ -833,6 +903,13 @@ function App() {
                     navigatedRecordId={navigatedRecordId}
                     setNavigatedRecordId={setNavigatedRecordId}
                 />
+              </div>
+          )}
+
+          {/* VIEW: JOURNAL */}
+          {view === 'journal' && (
+              <div key="journal" className="w-full h-full slide-in-right">
+                <Journal isFocusMode={isFocusMode} />
               </div>
           )}
 

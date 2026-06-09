@@ -28,7 +28,8 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
   const [reshapeTargetId, setReshapeTargetId] = useState(null);
 
   const mapContainerRef = useRef(null);
-  const transformRef = useRef(null);
+  const transformRef    = useRef(null);
+  const mapUploadRef    = useRef(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   // Track container dimensions for fit-scale calculation
@@ -126,6 +127,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
       const reader = new FileReader();
       reader.onloadend = () => updateMapImage(reader.result);
       reader.readAsDataURL(file);
+      e.target.value = '';
     }
   };
 
@@ -329,26 +331,70 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
               >
                 <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
                   <div className="relative w-[1200px] h-[800px]">
+                    {/* Hidden file input — triggered by buttons below */}
+                    <input
+                        ref={mapUploadRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                    />
+
                     {currentMap.imageUrl ? (
-                        <img
-                            src={currentMap.imageUrl}
-                            alt="Arcane Map Plane"
-                            className="w-full h-full object-contain pointer-events-none"
-                        />
+                        <>
+                          <img
+                              src={currentMap.imageUrl}
+                              alt="Arcane Map Plane"
+                              className="w-full h-full object-contain pointer-events-none"
+                          />
+                          {/* Replace map button — top-left corner, always accessible */}
+                          <button
+                              onClick={() => mapUploadRef.current?.click()}
+                              className="absolute top-3 left-3 z-20 font-mono tracking-[0.2em] uppercase transition-all duration-300"
+                              style={{
+                                fontSize: 9,
+                                padding: '5px 10px',
+                                background: 'rgba(var(--color-bg-main), 0.82)',
+                                border: '1px solid rgba(var(--color-primary), 0.22)',
+                                color: 'rgba(var(--color-primary), 0.55)',
+                                backdropFilter: 'blur(4px)',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.5)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.55)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.22)'; }}
+                              title="Replace map image"
+                          >
+                            ↑ Replace Map
+                          </button>
+                        </>
                     ) : (
                         <div
-                            className="w-full h-full flex items-center justify-center transition-colors group"
+                            className="w-full h-full flex flex-col items-center justify-center gap-4 transition-colors group cursor-pointer"
                             style={{
                               border: '1px dashed rgba(var(--color-primary), 0.12)',
                               background: 'rgba(0,0,0,0.15)',
+                              position: 'relative',
+                              zIndex: 20,
                             }}
+                            onClick={() => mapUploadRef.current?.click()}
                         >
-                          <input
-                              type="file"
-                              onChange={handleImageUpload}
-                              className="font-mono text-[10px] cursor-pointer"
-                              style={{ color: 'rgba(var(--color-primary), 0.4)' }}
-                          />
+                          <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1"
+                            style={{ width: 44, height: 44, color: 'rgba(var(--color-primary), 0.3)', transition: 'color .3s' }}
+                            className="group-hover:!text-[rgba(var(--color-primary),0.7)]"
+                          >
+                            <rect x="4" y="8" width="32" height="24" rx="1.5" />
+                            <polyline points="4,28 12,18 18,24 26,14 36,28" strokeLinejoin="round" />
+                            <circle cx="29" cy="15" r="3" />
+                          </svg>
+                          <div className="text-center" style={{ pointerEvents: 'none' }}>
+                            <p className="font-display tracking-[0.22em] uppercase"
+                              style={{ fontSize: 11, color: 'rgba(var(--color-primary), 0.45)', transition: 'color .3s' }}>
+                              Upload Map Image
+                            </p>
+                            <p className="font-mono mt-1"
+                              style={{ fontSize: 9, color: 'rgba(var(--color-primary-soft), 0.25)', letterSpacing: '0.1em' }}>
+                              Click to select from your computer
+                            </p>
+                          </div>
                         </div>
                     )}
                     <div className="absolute inset-0 z-10">

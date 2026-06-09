@@ -1,5 +1,6 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -7,17 +8,29 @@ function createWindow() {
     height: 850,
     minWidth: 1024,
     minHeight: 720,
-    backgroundColor: '#030712', // Matches your custom "Void Space" background color
-    autoHideMenuBar: true,      // Hides the old-fashioned "File, Edit, View" window menu
+    backgroundColor: '#030712',
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
     },
   });
 
-  // This tells Electron to load the final built version of your React interface
   win.loadFile(path.join(__dirname, 'dist', 'index.html'));
 }
+
+// ── IPC: Save file with native Save-As dialog ─────────────────────────────────
+ipcMain.handle('save-file', async (_event, { data, filename }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    defaultPath: filename,
+    filters: [{ name: 'Arcanum Archive', extensions: ['json'] }],
+  });
+  if (!canceled && filePath) {
+    fs.writeFileSync(filePath, data, 'utf-8');
+    return { success: true };
+  }
+  return { success: false };
+});
 
 app.whenReady().then(() => {
   createWindow();
