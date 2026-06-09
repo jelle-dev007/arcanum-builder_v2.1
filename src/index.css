@@ -1,37 +1,475 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cinzel+Decorative:wght@400;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&family=Spline+Sans+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
-/* --- EXISTING CUSTOM BASE CONFIG & TYPOGRAPHY --- */
+/* ============================================================
+   ARCANUM — RESKIN: OBSIDIAN CELESTIAL
+   Aesthetic: low fantasy, mystical, cosmic cartography
+   ============================================================ */
+
+:root {
+  --color-primary:      201, 168, 76;
+  --color-bg-main:      5, 5, 8;
+  --color-bg-surface:   11, 11, 16;
+  --color-primary-soft: 228, 211, 161;
+}
+
 body {
-  background-color: #030712; /* Void Space */
-  color: #f3f4f6;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #050508;
+  color: #c8c4b8;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   overflow-x: hidden;
 }
 
+/* ---- TYPOGRAPHY ROLES ---- */
+/* Display / headers: Cinzel — archaic, engraved, celestial */
+.font-display {
+  font-family: 'Cinzel', Georgia, serif;
+}
+/* Lore / narrative text: Cinzel for headings, Inter body */
 .font-lore {
-  font-family: Georgia, Cambria, "Times New Roman", Times, serif;
+  font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
+}
+/* Data / labels / mono: JetBrains Mono */
+.font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace !important;
+}
+/* Serif fallback kept for compatibility */
+.font-serif {
+  font-family: 'Cinzel', Georgia, serif;
 }
 
-/* --- SYSTEM COSMIC ANIMATIONS (Kept) --- */
-@keyframes slowRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes reverseRotate { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
-@keyframes floatMote { 0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.2; } 50% { transform: translateY(-40px) translateX(20px); opacity: 0.6; } }
+/* ============================================================
+   SCROLLBARS — ultra-minimal, arcane gold thread
+   ============================================================ */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--color-primary), 0.18);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--color-primary), 0.4);
+}
+
+/* ============================================================
+   SIGNATURE ELEMENT — ETCHED CORNER BRACKETS
+   Angular cartography-instrument frames. Replace standard
+   rounded borders on key panels. Never a full box — just corners.
+   ============================================================ */
+.bracket-frame {
+  position: relative;
+}
+.bracket-frame::before,
+.bracket-frame::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.4s ease;
+}
+/* Top-left corner */
+.bracket-frame::before {
+  top: 0; left: 0;
+  border-top: 1px solid rgba(var(--color-primary), 0.7);
+  border-left: 1px solid rgba(var(--color-primary), 0.7);
+}
+/* Bottom-right corner */
+.bracket-frame::after {
+  bottom: 0; right: 0;
+  border-bottom: 1px solid rgba(var(--color-primary), 0.7);
+  border-right: 1px solid rgba(var(--color-primary), 0.7);
+}
+
+/* Extended — adds top-right and bottom-left too */
+.bracket-frame-full::before,
+.bracket-frame-full::after {
+  width: 16px;
+  height: 16px;
+}
+.bracket-frame-full .bracket-tr,
+.bracket-frame-full .bracket-bl {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  z-index: 2;
+}
+/* These need to be injected via JSX data attrs or extra spans */
+
+/* ============================================================
+   PANEL SURFACES — obsidian tiers
+   ============================================================ */
+.panel-void {
+  background: rgb(var(--color-bg-main));
+  border: 1px solid rgba(var(--color-primary), 0.07);
+}
+.panel-surface {
+  background: rgb(var(--color-bg-surface));
+  border: 1px solid rgba(var(--color-primary), 0.10);
+}
+.panel-elevated {
+  background: linear-gradient(160deg,
+  rgba(var(--color-bg-surface), 0.95) 0%,
+  rgba(var(--color-bg-main), 0.98) 100%);
+  border: 1px solid rgba(var(--color-primary), 0.12);
+  box-shadow:
+          0 0 0 1px rgba(0,0,0,0.4),
+          0 8px 32px rgba(0,0,0,0.6),
+          inset 0 1px 0 rgba(var(--color-primary), 0.06);
+}
+
+/* The obsidian sidebar: solid, dense, no blur */
+.sidebar-obsidian {
+  background: rgb(var(--color-bg-surface));
+  border-left: 1px solid rgba(var(--color-primary), 0.12);
+  box-shadow:
+          -1px 0 0 rgba(0,0,0,0.8),
+          -8px 0 24px rgba(0,0,0,0.5);
+}
+
+/* ============================================================
+   PROXIMITY ILLUMINATION SYSTEM
+   Gold aura bleeds from interactive elements when approached.
+   ============================================================ */
+@keyframes proximityPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(var(--color-primary), 0);
+  }
+  50% {
+    box-shadow: 0 0 16px 2px rgba(var(--color-primary), 0.12);
+  }
+}
+
+.proximity-glow {
+  transition:
+          box-shadow 0.4s ease,
+          border-color 0.4s ease,
+          background-color 0.3s ease;
+}
+.proximity-glow:hover {
+  box-shadow:
+          0 0 12px rgba(var(--color-primary), 0.15),
+          inset 0 0 8px rgba(var(--color-primary), 0.04);
+  border-color: rgba(var(--color-primary), 0.35) !important;
+}
+
+/* Card proximity — used on record hall cards */
+.card-arcane {
+  background: linear-gradient(145deg,
+  rgba(var(--color-bg-surface), 0.7),
+  rgba(var(--color-bg-main), 0.9));
+  border: 1px solid rgba(var(--color-primary), 0.08);
+  transition:
+          border-color 0.35s ease,
+          box-shadow 0.35s ease,
+          transform 0.2s ease;
+}
+.card-arcane:hover {
+  border-color: rgba(var(--color-primary), 0.28);
+  box-shadow:
+          0 0 20px rgba(var(--color-primary), 0.08),
+          0 4px 24px rgba(0,0,0,0.5);
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   MYSTIC TEXT GLOW ENGINE — refined, slower, less frantic
+   ============================================================ */
+@keyframes mysticPulse {
+  0%, 100% {
+    text-shadow:
+            0 0 6px rgba(var(--color-primary), 0.15),
+            0 0 14px rgba(var(--color-primary), 0.06);
+    opacity: 0.85;
+  }
+  50% {
+    text-shadow:
+            0 0 10px rgba(var(--color-primary), 0.45),
+            0 0 28px rgba(var(--color-primary), 0.18),
+            0 0 50px rgba(var(--color-primary), 0.06);
+    opacity: 1;
+  }
+}
+.mystic-glow-active {
+  animation: mysticPulse 7s ease-in-out infinite;
+}
+
+@keyframes mysticPulseHover {
+  0%, 100% {
+    text-shadow: 0 0 4px rgba(var(--color-primary), 0.08);
+    opacity: 0.7;
+  }
+  50% {
+    text-shadow: 0 0 12px rgba(var(--color-primary), 0.35);
+    opacity: 1;
+  }
+}
+.mystic-glow-hover {
+  animation: mysticPulseHover 5s ease-in-out infinite;
+}
+
+/* ============================================================
+   SIGIL / ICON ANIMATIONS
+   ============================================================ */
+@keyframes sigilBreathe {
+  0%, 100% {
+    opacity: 0.55;
+    filter: drop-shadow(0 0 3px rgba(var(--color-primary), 0.3));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(var(--color-primary), 0.7))
+    drop-shadow(0 0 22px rgba(var(--color-primary), 0.2));
+  }
+}
+.sigil-breathe {
+  animation: sigilBreathe 5.5s ease-in-out infinite;
+}
+
+@keyframes slowRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes reverseRotate {
+  from { transform: rotate(360deg); }
+  to   { transform: rotate(0deg); }
+}
 .animate-cosmic-rotate { animation: slowRotate 120s linear infinite; }
 .animate-cosmic-reverse { animation: reverseRotate 80s linear infinite; }
-.animate-mote-1 { animation: floatMote 8s ease-in-out infinite; }
-.animate-mote-2 { animation: floatMote 12s ease-in-out infinite 2s; }
 
-/* Scrollbars */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #030712; }
-::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.2); border-radius: 2px; }
+/* ============================================================
+   DIVIDERS — golden rule lines with celestial motif
+   ============================================================ */
+.rule-gold {
+  height: 1px;
+  background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgba(var(--color-primary), 0.08) 20%,
+          rgba(var(--color-primary), 0.35) 50%,
+          rgba(var(--color-primary), 0.08) 80%,
+          transparent 100%
+  );
+  border: none;
+  margin: 0;
+}
 
-/* ======================================================= */
-/* --- FAIRY DUST SWARM ENGINE (DENSE CLOUD) --- */
-/* ======================================================= */
+/* ============================================================
+   CONSTELLATION DOTS — ambient decorative accent
+   Small luminous motes used sparingly as decorative glyphs
+   ============================================================ */
+.mote {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgb(var(--color-primary));
+  box-shadow: 0 0 4px rgba(var(--color-primary), 0.6);
+  opacity: 0.4;
+}
 
+/* ============================================================
+   BUTTONS — Arcane control language
+   ============================================================ */
+
+/* Primary action — filled gold */
+.btn-primary {
+  background: linear-gradient(135deg,
+  rgba(var(--color-primary), 0.9),
+  rgba(var(--color-primary), 0.75));
+  color: #050508;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  border: 1px solid rgba(var(--color-primary), 0.6);
+  padding: 0.5rem 1.25rem;
+  border-radius: 3px;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 14px rgba(var(--color-primary), 0.2), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg,
+  rgba(var(--color-primary), 1),
+  rgba(var(--color-primary), 0.9));
+  box-shadow: 0 0 22px rgba(var(--color-primary), 0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+  transform: translateY(-1px);
+}
+.btn-primary:disabled {
+  opacity: 0.25;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Secondary — ghost outline */
+.btn-ghost {
+  background: transparent;
+  color: rgba(var(--color-primary), 0.75);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  border: 1px solid rgba(var(--color-primary), 0.2);
+  padding: 0.5rem 1.25rem;
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+.btn-ghost:hover {
+  background: rgba(var(--color-primary), 0.06);
+  color: rgb(var(--color-primary));
+  border-color: rgba(var(--color-primary), 0.45);
+  box-shadow: 0 0 10px rgba(var(--color-primary), 0.1);
+}
+
+/* Danger — ember red */
+.btn-danger {
+  background: transparent;
+  color: rgba(239, 68, 68, 0.6);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  padding: 0.5rem 1.25rem;
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: rgb(239, 68, 68);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* ============================================================
+   FORM INPUTS — arcane inscription style
+   ============================================================ */
+.input-arcane {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(var(--color-primary), 0.12);
+  color: #d4cfc4;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border-radius: 3px;
+  outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.input-arcane:focus {
+  border-color: rgba(var(--color-primary), 0.45);
+  box-shadow: 0 0 10px rgba(var(--color-primary), 0.08), inset 0 0 4px rgba(var(--color-primary), 0.04);
+}
+.input-arcane::placeholder {
+  color: rgba(120, 115, 110, 0.5);
+  font-style: italic;
+}
+
+/* ============================================================
+   FIELD LABELS — small-caps cartography style
+   ============================================================ */
+.field-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(var(--color-primary), 0.45);
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* ============================================================
+   TYPE BADGE — inline record classification glyphs
+   ============================================================ */
+.type-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(var(--color-primary), 0.45);
+  background: rgba(var(--color-primary), 0.05);
+  border: 1px solid rgba(var(--color-primary), 0.12);
+  padding: 2px 7px;
+  border-radius: 2px;
+}
+
+/* ============================================================
+   PAGE TRANSITIONS
+   ============================================================ */
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInFromLeft {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in-right  { animation: slideInFromRight 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.slide-in-left   { animation: slideInFromLeft  0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.home-card       { animation: fadeInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fadeIn  { animation: fadeIn 0.35s ease both; }
+.animate-fadeInDown { animation: fadeInDown 0.35s ease both; }
+
+.home-card:nth-child(1) { animation-delay: 0.04s; }
+.home-card:nth-child(2) { animation-delay: 0.12s; }
+.home-card:nth-child(3) { animation-delay: 0.20s; }
+.home-card:nth-child(4) { animation-delay: 0.28s; }
+
+/* ============================================================
+   GRAIN SURFACE — ultra-subtle noise overlay
+   ============================================================ */
+.grain-surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: inherit;
+  opacity: 0.45;
+  mix-blend-mode: overlay;
+}
+
+/* ============================================================
+   CUSTOM SCROLLBAR (ARCANE)
+   ============================================================ */
+.arcane-scroll::-webkit-scrollbar { width: 2px; }
+.arcane-scroll::-webkit-scrollbar-track { background: transparent; }
+.arcane-scroll::-webkit-scrollbar-thumb {
+  background: rgba(var(--color-primary), 0.18);
+  border-radius: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar { width: 3px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(var(--color-primary), 0.2);
+  border-radius: 2px;
+}
+
+/* ============================================================
+   DUST CLOUD / FAIRY SWARM (kept from original, refined)
+   ============================================================ */
 @keyframes orbitSwarm {
-  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  0%   { transform: translate(-50%, -50%) rotate(0deg); }
   100% { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
@@ -45,72 +483,435 @@ body {
 
 .dust-cloud-runner {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 2px;
-  height: 2px;
-  /* Widened the spread of the particles for a more erratic, scattered look */
-  box-shadow: 
-    15px -35px 2px 0px #fbbf24, -25px 40px 1px 0px #f59e0b, 
-    45px 15px 2px 0px #fef3c7, -40px -15px 1px 0px #fbbf24,
-    60px 25px 3px 0px #fcd34d, -65px 5px 2px 0px #f59e0b,
-    25px 55px 1px 0px #fbbf24, -30px -45px 2px 0px #fef3c7,
-    70px -15px 3px 0px #f59e0b, -15px 70px 1px 0px #fbbf24;
-  opacity: 0.8;
-  filter: blur(1.5px);
-  animation: orbitSwarm 3.5s linear infinite;
+  top: 50%; left: 50%;
+  width: 2px; height: 2px;
+  box-shadow:
+          15px -35px 2px 0px rgba(var(--color-primary), 0.8),
+          -25px 40px 1px 0px rgba(var(--color-primary), 0.6),
+          45px 15px 2px 0px rgba(var(--color-primary), 0.9),
+          -40px -15px 1px 0px rgba(var(--color-primary), 0.7),
+          60px 25px 3px 0px rgba(var(--color-primary), 0.5),
+          -65px 5px 2px 0px rgba(var(--color-primary), 0.6),
+          25px 55px 1px 0px rgba(var(--color-primary), 0.8),
+          -30px -45px 2px 0px rgba(var(--color-primary), 0.7),
+          70px -15px 3px 0px rgba(var(--color-primary), 0.4),
+          -15px 70px 1px 0px rgba(var(--color-primary), 0.6);
+  opacity: 0.7;
+  filter: blur(1px);
+  animation: orbitSwarm 4s linear infinite;
 }
 
 .dust-cloud-runner::after {
   content: "";
   position: absolute;
-  width: 2px;
-  height: 2px;
-  box-shadow: 
-    -55px 30px 2px 0px #fbbf24, 40px -45px 1px 0px #f59e0b,
-    -70px -20px 2px 0px #fef3c7, 50px 30px 1px 0px #fbbf24,
-    -10px -60px 2px 0px #f59e0b, 10px 50px 2px 0px #fcd34d;
-  filter: blur(2px);
-  animation: orbitSwarm 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
+  width: 2px; height: 2px;
+  box-shadow:
+          -55px 30px 2px 0px rgba(var(--color-primary), 0.7),
+          40px -45px 1px 0px rgba(var(--color-primary), 0.5),
+          -70px -20px 2px 0px rgba(var(--color-primary), 0.8),
+          50px 30px 1px 0px rgba(var(--color-primary), 0.6),
+          -10px -60px 2px 0px rgba(var(--color-primary), 0.5),
+          10px 50px 2px 0px rgba(var(--color-primary), 0.7);
+  filter: blur(1.5px);
+  animation: orbitSwarm 3s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
 }
 
-/* --- MYSTICAL TEXT GLOW ENGINE --- */
+/* ============================================================
+   HEADER — etched nameplate
+   ============================================================ */
+.header-arcane {
+  background: rgba(var(--color-bg-surface), 0.88);
+  border-bottom: 1px solid rgba(var(--color-primary), 0.10);
+  box-shadow:
+          0 1px 0 rgba(var(--color-primary), 0.06),
+          0 4px 24px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
 
-/* Deep, slow breathing for the active state */
-@keyframes mysticPulse {
+/* ============================================================
+   NAV TAB INDICATOR — refined underline with gold glow node
+   ============================================================ */
+.nav-tab-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 1px;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  background: rgb(var(--color-primary));
+}
+
+/* ============================================================
+   MAP CANVAS WRAPPER
+   ============================================================ */
+.map-canvas-border {
+  border: 1px solid rgba(var(--color-primary), 0.12);
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow:
+          inset 0 0 40px rgba(0, 0, 0, 0.4),
+          0 0 0 1px rgba(0,0,0,0.5);
+}
+
+/* ============================================================
+   MODAL OVERLAY
+   ============================================================ */
+.modal-backdrop {
+  background: rgba(2, 2, 5, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.modal-panel {
+  background: linear-gradient(160deg,
+  rgba(var(--color-bg-surface), 0.98) 0%,
+  rgba(var(--color-bg-main), 0.99) 100%);
+  border: 1px solid rgba(var(--color-primary), 0.15);
+  box-shadow:
+          0 0 0 1px rgba(0,0,0,0.6),
+          0 20px 60px rgba(0,0,0,0.8),
+          0 0 40px rgba(var(--color-primary), 0.04);
+}
+
+/* ============================================================
+   TOOLTIP CARD
+   ============================================================ */
+.tooltip-arcane {
+  background: rgba(8, 8, 12, 0.97);
+  border: 1px solid rgba(var(--color-primary), 0.18);
+  box-shadow:
+          0 0 20px rgba(var(--color-primary), 0.06),
+          0 8px 24px rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+}
+
+/* ============================================================
+   THEME SELECTOR DOTS — gem-like
+   ============================================================ */
+.theme-dot {
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.theme-dot-active {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.15), 0 0 8px currentColor;
+  transform: scale(1.2);
+}
+.theme-dot-inactive {
+  opacity: 0.25;
+  filter: saturate(0.4);
+}
+.theme-dot-inactive:hover {
+  opacity: 0.75;
+  filter: saturate(1);
+  transform: scale(1.1);
+}
+
+/* ============================================================
+   RECORD HALL — fullscreen record modal
+   ============================================================ */
+.record-lore-block {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 2;
+  color: #a8a39a;
+  letter-spacing: 0.02em;
+  border-left: 1px solid rgba(var(--color-primary), 0.25);
+  padding-left: 1rem;
+}
+
+/* ============================================================
+   ETHEREAL PANEL (kept name for compatibility with App.jsx)
+   ============================================================ */
+.ethereal-panel {
+  background: linear-gradient(145deg,
+  rgba(var(--color-bg-surface), 0.85) 0%,
+  rgba(var(--color-bg-main), 0.92) 100%);
+  box-shadow:
+          inset 0 1px 0 rgba(var(--color-primary), 0.06),
+          0 8px 32px rgba(0,0,0,0.5);
+  border: 1px solid rgba(var(--color-primary), 0.09);
+  border-top: 1px solid rgba(var(--color-primary), 0.18);
+}
+
+/* ============================================================
+   FOCUS/SCRY MODE TRANSITION
+   ============================================================ */
+.scry-mode-enter { animation: fadeIn 0.6s ease both; }
+
+/* ============================================================
+   FONT ROLE — Cormorant Garamond (lore / body italic)
+   ============================================================ */
+.font-soft {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+/* ============================================================
+   SWEEPING EDGE LIGHT
+   Traveling conic-gradient halo that orbits a card border.
+   Uses CSS @property for angle animation (Chromium / Electron).
+   ============================================================ */
+@property --sweep {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.edge {
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  pointer-events: none;
+  z-index: 1;
+  background: conic-gradient(
+    from var(--sweep),
+    transparent 0deg, transparent 55deg,
+    rgba(var(--color-primary), .75) 88deg,
+    rgba(var(--color-primary), 1)   92deg,
+    rgba(var(--color-primary), .75) 96deg,
+    transparent 130deg, transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: edge-sweep 7s linear infinite;
+}
+.edge.slow { animation-duration: 11s; opacity: .7; }
+@keyframes edge-sweep { to { --sweep: 360deg; } }
+
+/* ============================================================
+   HERO ARCANUM TITLE — gradient text with breathe animation
+   ============================================================ */
+.arcanum-title {
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  font-size: clamp(52px, 8vw, 88px);
+  letter-spacing: .16em;
+  margin-left: .16em;
+  line-height: 1;
+  background: linear-gradient(180deg, rgba(var(--color-primary), .55) 8%, rgb(var(--color-primary)) 52%, rgba(var(--color-primary), .3) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: title-breathe 7s ease-in-out infinite;
+}
+@keyframes title-breathe {
   0%, 100% {
-    text-shadow: 
-      0 0 4px rgba(245, 158, 11, 0.2), 
-      0 0 10px rgba(245, 158, 11, 0.1);
-    color: #fcd34d; 
+    opacity: .5;
+    filter: drop-shadow(0 2px 8px rgba(var(--color-primary), .05))
+            drop-shadow(0 0 1px rgba(var(--color-primary), .04));
   }
   50% {
-    text-shadow: 
-      0 0 8px rgba(245, 158, 11, 0.6), 
-      0 0 20px rgba(245, 158, 11, 0.3),
-      0 0 35px rgba(217, 119, 6, 0.15);
-    color: #fef3c7; 
+    opacity: 1;
+    filter: drop-shadow(0 2px 36px rgba(var(--color-primary), .45))
+            drop-shadow(0 0 16px rgba(var(--color-primary), .34));
   }
 }
 
-.mystic-glow-active {
-  /* Increased from 4s to 6s for a much slower, calmer cycle */
-  animation: mysticPulse 6s ease-in-out infinite;
+/* ============================================================
+   WORDMARK BREATHE — header brand pulse
+   ============================================================ */
+@keyframes wm-breathe {
+  0%, 100% { opacity: .42; text-shadow: 0 0 3px rgba(var(--color-primary), .08); }
+  50%       { opacity: 1;   text-shadow: 0 0 12px rgba(var(--color-primary), .55); }
 }
+.wm-breathe { animation: wm-breathe 7s ease-in-out infinite; }
 
-/* Very subtle, slow waking pulse for hover */
-@keyframes mysticPulseHover {
+/* ============================================================
+   CORE PULSE — SVG inner dot animation
+   ============================================================ */
+.core-pulse-elem {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: core-pulse 3.4s ease-in-out infinite;
+}
+@keyframes core-pulse {
   0%, 100% {
-    text-shadow: 0 0 2px rgba(245, 158, 11, 0.1);
-    color: #fde68a; 
+    opacity: .65;
+    transform: scale(.85);
+    filter: drop-shadow(0 0 2px rgba(var(--color-primary), .5));
   }
   50% {
-    text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
-    color: #fffbeb; 
+    opacity: 1;
+    transform: scale(1.3);
+    filter: drop-shadow(0 0 8px rgba(var(--color-primary), 1));
   }
 }
+.crest-ring {
+  transform-box: view-box;
+  transform-origin: center;
+  animation: slowRotate 48s linear infinite;
+}
 
-.mystic-glow-hover {
-  /* Increased from 1.5s to 4s to remove the artificial flashing feel */
-  animation: mysticPulseHover 4s ease-in-out infinite;
+/* ============================================================
+   SEAL DOT — pulsing amber orb on active map frame
+   ============================================================ */
+.seal-dot {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: rgb(var(--color-primary));
+  box-shadow: 0 0 0 4px rgba(var(--color-primary), .14), 0 0 14px 2px rgba(var(--color-primary), .6);
+  animation: seal-pulse 3.4s ease-in-out infinite;
+}
+@keyframes seal-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(var(--color-primary), .12), 0 0 12px 1px rgba(var(--color-primary), .5); }
+  50%       { box-shadow: 0 0 0 7px rgba(var(--color-primary), .05), 0 0 20px 3px rgba(var(--color-primary), .75); }
+}
+
+/* ============================================================
+   ENTER PLANE — hover reveal on plane card
+   ============================================================ */
+.enter-plane {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .26em;
+  color: rgb(var(--color-primary));
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity .45s, transform .45s;
+  white-space: nowrap;
+}
+.group:hover .enter-plane { opacity: 1; transform: translateX(0); }
+
+/* ============================================================
+   NEW PLANE CARD — ring conjure design
+   ============================================================ */
+.newplane-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  border: 1px dashed rgba(var(--color-primary), .22);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color .45s, background .45s;
+  position: relative;
+}
+.newplane-card:hover {
+  border-color: rgba(var(--color-primary), .45);
+  background: rgba(var(--color-primary), .03);
+}
+.newplane-ring {
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--color-primary), .18);
+  position: relative;
+  transition: border-color .5s, box-shadow .5s;
+}
+.newplane-card:hover .newplane-ring {
+  border-color: rgba(var(--color-primary), .4);
+  box-shadow: 0 0 30px rgba(var(--color-primary), .15);
+}
+.newplane-ring::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 1px dashed rgba(var(--color-primary), .18);
+  animation: slowRotate 60s linear infinite;
+}
+.newplane-plus {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 44px;
+  color: rgba(var(--color-primary), .55);
+  line-height: 0;
+  transition: color .4s;
+}
+.newplane-card:hover .newplane-plus { color: rgb(var(--color-primary)); }
+.newplane-lbl {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: .32em;
+  color: rgba(var(--color-primary), .38);
+  margin-top: 26px;
+  transition: color .4s;
+  text-transform: uppercase;
+}
+.newplane-card:hover .newplane-lbl { color: rgb(var(--color-primary)); }
+
+/* ============================================================
+   MODE CARD TOPLINE — expands from left on hover
+   ============================================================ */
+.mode-topline {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(var(--color-primary)), transparent);
+  transform: scaleX(.25);
+  opacity: .4;
+  transition: transform .5s, opacity .5s;
+  transform-origin: left;
+}
+.card-arcane:hover .mode-topline { transform: scaleX(1); opacity: 1; }
+
+/* Mode card arrow reveal */
+.mode-arrow {
+  position: absolute;
+  bottom: 26px;
+  right: 26px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  color: rgb(var(--color-primary));
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity .45s, transform .45s;
+}
+.card-arcane:hover .mode-arrow { opacity: 1; transform: translateX(0); }
+
+/* ============================================================
+   ORRERY — spinning SVG ring system
+   ============================================================ */
+.orrery-wrap {
+  position: fixed;
+  top: -5vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1400px, 120vw);
+  height: min(1400px, 120vw);
+  z-index: 1;
+  opacity: .75;
+  pointer-events: none;
+}
+.orrery-s1 { transform-box: view-box; transform-origin: center; animation: slowRotate 240s linear infinite; }
+.orrery-s2 { transform-box: view-box; transform-origin: center; animation: reverseRotate 160s linear infinite; }
+.orrery-s3 { transform-box: view-box; transform-origin: center; animation: slowRotate 380s linear infinite; }
+.orrery-s4 { transform-box: view-box; transform-origin: center; animation: reverseRotate 90s linear infinite; }
+
+/* ============================================================
+   SCRY BUTTON — chamfered corner cut
+   ============================================================ */
+.scry-chamfer {
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+/* ============================================================
+   GHOST BUTTON — section action buttons (import/export)
+   ============================================================ */
+.ghost-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: .26em;
+  color: rgba(var(--color-primary), .62);
+  padding: 10px 20px;
+  border: 1px solid rgba(var(--color-primary), .18);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  transition: color .35s, border-color .35s, background .35s;
+  text-transform: uppercase;
+}
+.ghost-btn:hover {
+  color: rgb(var(--color-primary));
+  border-color: rgba(var(--color-primary), .4);
+  background: rgba(var(--color-primary), .05);
 }
