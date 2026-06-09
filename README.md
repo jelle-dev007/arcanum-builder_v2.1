@@ -12,6 +12,9 @@ export/import happens as something called a ".json" file. this just means it sto
 
 oh and the "SCRY" was once a "focus-mode" but kind of got useless but i kept it there in case i'd have need of it. maybe i'll use it in a future update
 
+oh if windows flags it as a virus, you can ignore that. 
+i'm not a publisher and won't pay $80 a year for a license or whatever it is. you're free to ask a coding friend for their opinion and they'll probably tell you if it's that awfully coded, even if it had a virus, it would probably not know what to infect or do.
+
 hope you enjoy it!
 
 -jelle
