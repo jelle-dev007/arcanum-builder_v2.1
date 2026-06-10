@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import BracketCorners from './BracketCorners';
@@ -96,7 +96,9 @@ const RecordHall = ({
   const [linkTooltipPos, setLinkTooltipPos] = useState({ x: 0, y: 0 });
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [linkSearchQuery, setLinkSearchQuery] = useState('');
-  const textAreaRef = useRef(null);
+  const textAreaRef    = useRef(null);
+  const gridRef        = useRef(null);
+  const cardFlipSnap   = useRef(new Map());
   const [slideshowIndex, setSlideshowIndex] = useState(0);
 
   const [folderPath, setFolderPath] = useState([]);
@@ -312,9 +314,68 @@ const RecordHall = ({
   const handleErase = (id, e) => {
     e.stopPropagation();
     if (window.confirm("Permanently erase this chronicle trace? (Items inside this folder will lose their parent.)")) {
+      const grid = gridRef.current;
+
+      const cardEl = grid?.querySelector(`[data-recid="${id}"]`);
+      if (cardEl) {
+        const rect = cardEl.getBoundingClientRect();
+        const clone = cardEl.cloneNode(true);
+        clone.removeAttribute('data-recid');
+        clone.style.cssText = `position:fixed;top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;height:${rect.height}px;margin:0;z-index:200;pointer-events:none;`;
+        clone.classList.add('realm-card-exit');
+        document.body.appendChild(clone);
+        setTimeout(() => { if (clone.isConnected) clone.remove(); }, 600);
+      }
+
+      const snap = new Map();
+      if (grid) {
+        grid.querySelectorAll('[data-recid]').forEach(el => {
+          if (el.dataset.recid !== String(id)) {
+            snap.set(el.dataset.recid, el.getBoundingClientRect());
+          }
+        });
+      }
+      cardFlipSnap.current = snap;
+
       setMapData(mapData.filter(entry => entry.id !== id));
     }
   };
+
+  useLayoutEffect(() => {
+    const snap = cardFlipSnap.current;
+    if (!snap.size) return;
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    const toAnimate = [];
+    grid.querySelectorAll('[data-recid]').forEach(el => {
+      const prev = snap.get(el.dataset.recid);
+      if (!prev) return;
+      const next = el.getBoundingClientRect();
+      const dx = prev.left - next.left;
+      const dy = prev.top - next.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      el.style.animationName = 'none';
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      toAnimate.push(el);
+    });
+
+    cardFlipSnap.current = new Map();
+    if (!toAnimate.length) return;
+
+    const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toAnimate.forEach(el => {
+          if (!el.isConnected) return;
+          el.style.transition = `transform 0.75s ${EASE}`;
+          el.style.transform = '';
+          el.addEventListener('transitionend', () => { el.style.transition = ''; }, { once: true });
+        });
+      });
+    });
+  }, [mapData.length]);
 
   const handleMoveEntry = (targetFolderId) => {
     setMapData(mapData.map(entry => entry.id === moveTargetId ? { ...entry, parentId: targetFolderId } : entry));
@@ -351,11 +412,12 @@ const RecordHall = ({
   };
 
   // ================= CARD GRID =================
-  const renderCardGrid = (records) => (
-      <div className="grid md:grid-cols-2 gap-3">
+  const renderCardGrid = (records, ref) => (
+      <div ref={ref} className="grid md:grid-cols-2 gap-3">
         {records.map((entry) => (
             <div
                 key={entry.id}
+                data-recid={entry.id}
                 onClick={() => {
                   if (entry.isFolder) {
                     setSearchQuery('');
@@ -807,7 +869,7 @@ const RecordHall = ({
                 No traces match current parameters.
               </span>
                   </div>
-              ) : renderCardGrid(filteredRecords)}
+              ) : renderCardGrid(filteredRecords, gridRef)}
             </div>
         )}
 
@@ -904,7 +966,7 @@ const RecordHall = ({
                   Add an entry from the left panel.
                 </span>
                     </div>
-                ) : renderCardGrid(filteredRecords)}
+                ) : renderCardGrid(filteredRecords, gridRef)}
               </div>
             </div>
         )}

@@ -1,7 +1,9 @@
 {
   "name": "arcanum-builder",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "A worldbuilding tool for creating and managing chronicle records, maps, and journal entries.",
+  "author": "Arcanum Builder",
   "type": "commonjs",
   "main": "electron.js",
   "scripts": {
@@ -39,11 +41,27 @@
   "build": {
     "appId": "com.arcanum.builder",
     "productName": "Arcanum Builder",
+    "copyright": "Copyright © 2025 Arcanum Builder",
     "directories": {
-      "output": "dist_desktop"
+      "output": "../Arcanum-Builder_v2.1"
     },
+    "files": [
+      "dist/**/*",
+      "electron.js",
+      "package.json"
+    ],
     "win": {
-      "target": "portable"
+      "icon": "src/assets/ArcanumICON.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Arcanum Builder"
     }
   }
 }
