@@ -70,7 +70,7 @@
       "shortcutName": "Arcanum Builder"
     },
     "mac": {
-      "icon": "src/assets/ArcanumICON.ico",
+      "icon": "src/assets/ArcanumICON.png",
       "target": [
         { "target": "dmg", "arch": ["x64", "arm64"] }
       ],
