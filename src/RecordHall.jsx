@@ -653,6 +653,7 @@ const RecordHall = ({
                       <select value={subdivision} onChange={(e) => setSubdivision(e.target.value)} className="input-arcane">
                         <option value="region">REGION</option>
                         <option value="landmark">LANDMARK</option>
+                        <option value="place">PLACE</option>
                         <option value="character">KEY FIGURE</option>
                       </select>
                     </div>
@@ -804,7 +805,7 @@ const RecordHall = ({
                       className="flex gap-1 p-1"
                       style={{ background: 'rgba(0,0,0,0.35)', borderRadius: '3px', border: '1px solid rgba(var(--color-primary), 0.07)' }}
                   >
-                    {['all', 'region', 'landmark', 'character'].map((type) => (
+                    {['all', 'region', 'landmark', 'place', 'character'].map((type) => (
                         <button
                             key={type}
                             onClick={() => setActiveTypeFilter(type)}

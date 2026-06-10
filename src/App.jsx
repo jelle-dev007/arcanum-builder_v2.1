@@ -8,6 +8,7 @@ import TutorialOverlay from './TutorialOverlay';
 import CommandPalette from './components/CommandPalette';
 import { generateMarkdown } from './utils/exportMarkdown';
 import { generateHtml } from './utils/exportHtml';
+import { applyThemeCursors } from './utils/cursorUtils';
 
 const hexToRgbObj = (hex) => {
   if (!hex) return { r: 201, g: 168, b: 76 };
@@ -224,9 +225,22 @@ function App() {
   const [editingPlaneName, setEditingPlaneName] = useState('');
   const [importError, setImportError]     = useState('');
   const [removingIds, setRemovingIds]     = useState(new Set());
+  const [autoSavePath, setAutoSavePath] = useState(() => localStorage.getItem('arcanum_autosave_path') || null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState(null);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [gridCols, setGridCols] = useState(3);
+  const [activeLayerId, setActiveLayerId] = useState('base');
   const importFileRef = useRef(null);
   const colorStateRef = useRef(null);
   const animRafRef    = useRef(null);
+  const gridRef         = useRef(null);
+  const conjureRef      = useRef(null);
+  const cardFlipSnap    = useRef(new Map());
+  const conjureFlipPos  = useRef(null);
+  const autoSaveTimer      = useRef(null);
+  const autoSaveStatusTimer = useRef(null);
+  const gridRoRef          = useRef(null);
 
   useEffect(() => { localStorage.setItem('world_archive_maps', JSON.stringify(maps)); }, [maps]);
   useEffect(() => { localStorage.setItem('world_archive_active_id', activeMapId); }, [activeMapId]);
@@ -588,6 +602,10 @@ function App() {
     return () => { if (animRafRef.current) cancelAnimationFrame(animRafRef.current); };
   }, [activeTheme]);
 
+  useEffect(() => {
+    if (activeTheme?.primary) applyThemeCursors(activeTheme.primary);
+  }, [activeTheme]);
+
   return (
       <div
           className="min-h-screen text-gray-300 relative overflow-hidden"
@@ -936,7 +954,7 @@ function App() {
                         role="button"
                         tabIndex={0}
                         onKeyDown={e => e.key === 'Enter' && !isEditing && handleSelectPlane(m.id)}
-                        className={`home-card card-arcane group relative text-left transition-all duration-500 overflow-hidden cursor-pointer${deletingIds.has(m.id) ? ' realm-card-exit' : ''}`}
+                        className={`home-card card-arcane group relative text-left transition-all duration-500 overflow-hidden cursor-pointer${removingIds.has(m.id) ? ' realm-card-exit' : ''}`}
                         style={{
                           animationDelay: `${idx * 0.06}s`,
                           borderRadius: 0,

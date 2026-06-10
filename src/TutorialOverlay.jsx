@@ -45,6 +45,21 @@ const STEPS = [
     body: "Cartographer's Hand adds organic wobble to your lines — like hand-drawn. Straight Lines gives clean, precise strokes.",
     position: 'bottom',
   },
+  // ── Map — labels & layers ─────────────────────────────
+  {
+    view: 'map',
+    selector: '[data-tutorial="label-btn"]',
+    title: 'Map Labels',
+    body: 'Click Labels to enter label mode, then click anywhere on the map to place floating text — ocean names, mountain ranges, unmarked cities. Double-click an existing label to connect it to a chronicle entry or create a new Place record. A small dot beneath the label means lore is attached.',
+    position: 'bottom',
+  },
+  {
+    view: 'map',
+    selector: '[data-tutorial="layers-btn"]',
+    title: 'Map Layers',
+    body: 'Open the Layers panel to organise drawings by era, faction, or theme. Toggle layer visibility with the eye icon, set the active drawing layer with the circle marker, double-click a name to rename it, and add new layers at the bottom.',
+    position: 'bottom',
+  },
   // ── Map — drawing ─────────────────────────────────────
   {
     view: 'map',
@@ -79,7 +94,7 @@ const STEPS = [
     view: 'recordhall',
     selector: '[data-tutorial="record-list"]',
     title: 'Hall of Records',
-    body: 'Every drawn shape gets a Chronicle entry here. Add lore, key figures, and link records using [[id|name]] syntax. Export individual entries or the full chronicle as Markdown, or open the Web of Chronicles to see how records connect.',
+    body: 'Every drawn shape — and every linked map label — gets a Chronicle entry here. When creating a new entry, pick a template (NPC, City, Faction, Ruin, Dungeon) to start with pre-filled sections. Filter by Region, Landmark, Place, or Key Figure, link records with [[id|name]] syntax, and export the full chronicle as Markdown.',
     position: 'bottom',
   },
   // ── Journal ───────────────────────────────────────────
@@ -89,6 +104,14 @@ const STEPS = [
     title: 'The Journal',
     body: 'A free-form writing space for your world. Create nested entries, write in Markdown, and use the search bar to filter entries by title or content.',
     position: 'right',
+  },
+  // ── Command Palette ───────────────────────────────────
+  {
+    view: 'home',
+    selector: null,
+    title: 'Command Palette',
+    body: "Press Ctrl+K from anywhere in the app to open the Command Palette — a fast search overlay that jumps to any record, plane, or journal entry by name. Type a few characters and press Enter or click a result.",
+    position: 'center',
   },
 ];
 

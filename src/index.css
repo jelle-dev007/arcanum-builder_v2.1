@@ -18,6 +18,20 @@ body {
   color: #c8c4b8;
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   overflow-x: hidden;
+  cursor: var(--arcanum-cursor, default);
+}
+
+/* Themed pointer cursor on interactive elements.
+   Overrides Tailwind's .cursor-pointer since this rule comes after the @import. */
+a, button, select, .cursor-pointer {
+  cursor: var(--arcanum-cursor-pointer, pointer);
+}
+
+/* Preserve system text cursor for text inputs */
+input:not([type='range']):not([type='color']):not([type='checkbox']):not([type='radio']),
+textarea,
+[contenteditable='true'] {
+  cursor: text;
 }
 
 /* ---- TYPOGRAPHY ROLES ---- */

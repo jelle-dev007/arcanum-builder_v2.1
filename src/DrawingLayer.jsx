@@ -3,6 +3,7 @@ import { CANVAS_W, CANVAS_H } from './constants';
 
 const CLOSE_RADIUS = 10;
 
+
 const DrawingLayer = ({
   width, height,
   isDrawingMode,
@@ -19,9 +20,11 @@ const DrawingLayer = ({
   isLabelMode = false,
   textLabels = [],
   onLabelClick,
-  onEditLabel,
   onDeleteLabel,
   onMoveLabel,
+  onClickLabel,
+  onHoverLabel,
+  onLeaveLabel,
   layers,
 }) => {
   const [dragInfo, setDragInfo] = useState(null);
@@ -214,7 +217,7 @@ const DrawingLayer = ({
       <rect
         width={CANVAS_W} height={CANVAS_H}
         fill="black" fillOpacity={0}
-        style={{ pointerEvents: isDrawingMode || isLabelMode ? 'all' : 'none', cursor: isLabelMode ? 'text' : nearFirstNode ? 'pointer' : 'crosshair' }}
+        style={{ pointerEvents: isDrawingMode || isLabelMode ? 'all' : 'none', cursor: nearFirstNode ? 'pointer' : 'crosshair' }}
         onClick={handleMapClick}
       />
 
@@ -352,57 +355,81 @@ const DrawingLayer = ({
 
       {/* 3.5 TEXT LABELS */}
       {textLabels.map(label => {
-        const handleLabelDragStart = (e) => {
+        const hasLore = !!label.recordId;
+        const fs = label.fontSize || 20;
+
+        const handleLabelMouseDown = (e) => {
+          if (!isLabelMode) return;
           e.stopPropagation();
           e.preventDefault();
           const svg = e.currentTarget.ownerSVGElement;
           const ctm = svg.getScreenCTM();
           if (!ctm) return;
+          let moved = false;
+          const startX = e.clientX;
+          const startY = e.clientY;
           const pt = svg.createSVGPoint();
           pt.x = e.clientX; pt.y = e.clientY;
-          const svgPos = pt.matrixTransform(ctm.inverse());
-          const offsetX = svgPos.x - label.x;
-          const offsetY = svgPos.y - label.y;
+          const svgStart = pt.matrixTransform(ctm.inverse());
+          const offsetX = svgStart.x - label.x;
+          const offsetY = svgStart.y - label.y;
           const onMove = (me) => {
-            const movePt = svg.createSVGPoint();
-            movePt.x = me.clientX; movePt.y = me.clientY;
-            const pos = movePt.matrixTransform(ctm.inverse());
-            if (onMoveLabel) onMoveLabel(label.id, pos.x - offsetX, pos.y - offsetY);
+            if (!moved && (Math.abs(me.clientX - startX) > 5 || Math.abs(me.clientY - startY) > 5)) moved = true;
+            if (moved) {
+              const mp = svg.createSVGPoint();
+              mp.x = me.clientX; mp.y = me.clientY;
+              const pos = mp.matrixTransform(ctm.inverse());
+              if (onMoveLabel) onMoveLabel(label.id, pos.x - offsetX, pos.y - offsetY);
+            }
           };
           const onUp = () => {
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
+            if (!moved && onClickLabel) onClickLabel(label);
           };
           window.addEventListener('mousemove', onMove);
           window.addEventListener('mouseup', onUp);
         };
 
         return (
-          <text
-            key={label.id}
-            x={label.x}
-            y={label.y}
-            fill={label.color || 'rgb(var(--color-primary))'}
-            fontSize={label.fontSize || 20}
-            fontFamily="'Cinzel', serif"
-            textAnchor="middle"
-            dominantBaseline="middle"
-            letterSpacing="0.12em"
-            fontWeight="bold"
-            style={{
-              pointerEvents: isDrawingMode ? 'none' : 'auto',
-              cursor: isLabelMode ? 'move' : 'pointer',
-              filter: 'drop-shadow(0 2px 8px rgba(0,0,0,1)) drop-shadow(0 0 4px rgba(0,0,0,0.8))',
-              textTransform: 'uppercase',
-              userSelect: 'none',
-            }}
-            onMouseDown={isLabelMode ? handleLabelDragStart : undefined}
-            onClick={isLabelMode ? (e) => e.stopPropagation() : undefined}
-            onDoubleClick={isLabelMode ? (e) => e.stopPropagation() : (e) => { e.stopPropagation(); if (onEditLabel) onEditLabel(label); }}
-            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteLabel) onDeleteLabel(label.id); }}
-          >
-            {label.text}
-          </text>
+          <g key={label.id}>
+            <text
+              x={label.x}
+              y={label.y}
+              fill={label.color || 'rgb(var(--color-primary))'}
+              fontSize={fs}
+              fontFamily="'Cinzel', serif"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              letterSpacing="0.12em"
+              fontWeight="bold"
+              style={{
+                pointerEvents: isDrawingMode ? 'none' : 'auto',
+                cursor: isLabelMode ? 'grab' : 'pointer',
+                filter: 'drop-shadow(0 2px 8px rgba(0,0,0,1)) drop-shadow(0 0 4px rgba(0,0,0,0.8))',
+                textTransform: 'uppercase',
+                userSelect: 'none',
+              }}
+              onMouseDown={handleLabelMouseDown}
+              onClick={(e) => { e.stopPropagation(); if (!isLabelMode && onClickLabel) onClickLabel(label); }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (isLabelMode && onDeleteLabel) onDeleteLabel(label.id); }}
+              onMouseEnter={(!isLabelMode && hasLore) ? (e) => { if (onHoverLabel) onHoverLabel(label, e); } : undefined}
+              onMouseLeave={(!isLabelMode && hasLore) ? () => { if (onLeaveLabel) onLeaveLabel(); } : undefined}
+            >
+              {label.text}
+            </text>
+            {hasLore && (
+              <circle
+                cx={label.x}
+                cy={label.y + fs * 0.78}
+                r={2.5}
+                fill={label.color || 'rgb(var(--color-primary))'}
+                fillOpacity={0.7}
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+          </g>
         );
       })}
 
