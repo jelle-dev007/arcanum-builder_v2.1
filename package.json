@@ -68,6 +68,17 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Arcanum Builder"
+    },
+    "mac": {
+      "icon": "src/assets/ArcanumICON.ico",
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "dmg": {
+      "title": "Arcanum Builder",
+      "window": { "width": 540, "height": 380 }
     }
   }
 }
