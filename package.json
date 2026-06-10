@@ -1,7 +1,7 @@
 {
   "name": "arcanum-builder",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.2.0",
   "description": "A worldbuilding tool for creating and managing chronicle records, maps, and journal entries.",
   "author": "Arcanum Builder",
   "type": "commonjs",
@@ -32,7 +32,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "electron": "^30.0.0",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^25.1.8",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
@@ -44,7 +44,7 @@
     "productName": "Arcanum Builder",
     "copyright": "Copyright © 2025 Arcanum Builder",
     "directories": {
-      "output": "../Arcanum-Builder_v2.1"
+      "output": "../Arcanum-Builder_v2.2"
     },
     "files": [
       "dist/**/*",
@@ -68,6 +68,17 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Arcanum Builder"
+    },
+    "mac": {
+      "icon": "src/assets/ArcanumICON.png",
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "dmg": {
+      "title": "Arcanum Builder",
+      "window": { "width": 540, "height": 380 }
     }
   }
 }
