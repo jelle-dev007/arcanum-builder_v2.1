@@ -230,125 +230,119 @@ const DrawingLayer = ({
         <line x1={400} y1={0} x2={400} y2={CANVAS_H} />
       </g>
 
-      {/* 1. TERRITORY REGIONS */}
-      {showRegions && visibleData.map((entry) => {
-        if (!entry.points || entry.type !== 'region') return null;
-        const center = getCenterOfPoints(entry.points);
-        const uniqueColor = entry.color || 'rgb(var(--color-primary))';
-        const isReshapingThis = reshapeTargetId === entry.id;
-        const isHovered = hoveredRegionId === entry.id;
+      {/* Shapes grouped by layer — layer array order = z-order (index 0 = behind), opacity per group */}
+      {(layers || [{ id: 'base', opacity: 1, visible: true }]).map(layer => {
+        if (layer.visible === false) return null;
+        const shapes = layers
+          ? visibleData.filter(e => (e.layerId ?? 'base') === layer.id)
+          : visibleData;
 
-        return (
-          <g key={entry.id}>
-            <path
-              d={pointsToPath(entry.points, true)}
-              fill={uniqueColor}
-              fillOpacity={isHovered ? 0.35 : 0.15}
-              stroke={uniqueColor}
-              strokeWidth={isReshapingThis ? 4 : isHovered ? 3 : 1.5}
-              strokeOpacity={isHovered || isReshapingThis ? 1.0 : 0.4}
-              strokeDasharray={isReshapingThis ? "4,4" : "none"}
-              filter="url(#hand-drawn-edge)"
-              style={{
-                pointerEvents: isDrawingMode ? 'none' : 'auto',
-                cursor: 'pointer',
-                transition: 'stroke-width 0.2s ease, fill-opacity 0.2s ease'
-              }}
-              onMouseEnter={() => setHoveredRegionId(entry.id)}
-              onMouseMove={(e) => { setHoveredRegionId(entry.id); if (!reshapeTargetId) onHoverEntry(e, entry); }}
-              onMouseLeave={() => { setHoveredRegionId(null); onLeaveEntry(); }}
-              onClick={(e) => { e.stopPropagation(); onClickEntry(entry); }}
-              onDoubleClick={(e) => { e.stopPropagation(); onDoubleClickEntry(entry); }}
-            />
-            {!isReshapingThis && (
-              <text
-                x={center.x} y={center.y} fill={uniqueColor}
-                fillOpacity={isHovered ? 1.0 : 0.5}
-                fontFamily="serif" fontSize="13" fontWeight="bold" textAnchor="middle"
-                className="pointer-events-none tracking-[0.25em] uppercase"
-                style={{ transition: 'fill-opacity 0.4s ease', textShadow: '0px 2px 8px rgba(0,0,0,0.9)' }}
-              >
-                {entry.name}
-              </text>
-            )}
-          </g>
-        );
-      })}
-
-      {/* 2. ROADS / MANA LEYLINES */}
-      {showLandmarks && visibleData.map((entry) => {
-        if (!entry.points || entry.type !== 'road') return null;
-        const uniqueColor = entry.color || 'rgb(var(--color-primary))';
-        const isReshapingThis = reshapeTargetId === entry.id;
-        const lineStyle = entry.lineStyle || 'solid';
-        const evtProps = {
-          style: { pointerEvents: isDrawingMode ? 'none' : 'auto', cursor: 'pointer' },
-          onMouseMove: (e) => !reshapeTargetId && onHoverEntry(e, entry),
-          onMouseLeave: onLeaveEntry,
-          onClick: (e) => { e.stopPropagation(); onClickEntry(entry); },
-          onDoubleClick: (e) => { e.stopPropagation(); onDoubleClickEntry(entry); },
-        };
-
-        const getDash = (style) => {
+        const getDash = (style, isReshapingThis) => {
           if (isReshapingThis) return '6,4';
           if (style === 'dashed') return '10,6';
           if (style === 'dotted') return '2,5';
           return 'none';
         };
 
-        if (lineStyle === 'double') {
-          return (
-            <g key={entry.id} {...evtProps}>
-              <path d={pointsToPath(entry.points, false)} fill="none" stroke={uniqueColor}
-                strokeWidth={isReshapingThis ? 9 : 7} strokeDasharray={isReshapingThis ? '6,4' : 'none'}
-                filter="url(#leylineGlow)" />
-              <path d={pointsToPath(entry.points, false)} fill="none" stroke="rgba(0,0,0,0.85)"
-                strokeWidth={isReshapingThis ? 5 : 3} strokeDasharray={isReshapingThis ? '6,4' : 'none'}
-                style={{ pointerEvents: 'none' }} />
-            </g>
-          );
-        }
-
         return (
-          <path
-            key={entry.id}
-            d={pointsToPath(entry.points, false)}
-            fill="none"
-            stroke={uniqueColor}
-            strokeWidth={isReshapingThis ? 6 : 4}
-            strokeDasharray={getDash(lineStyle)}
-            filter="url(#leylineGlow)"
-            {...evtProps}
-          />
-        );
-      })}
+          <g key={layer.id} opacity={layer.opacity ?? 1}>
+            {/* Regions */}
+            {showRegions && shapes.map((entry) => {
+              if (!entry.points || entry.type !== 'region') return null;
+              const center = getCenterOfPoints(entry.points);
+              const uniqueColor = entry.color || 'rgb(var(--color-primary))';
+              const isReshapingThis = reshapeTargetId === entry.id;
+              const isHovered = hoveredRegionId === entry.id;
+              return (
+                <g key={entry.id}>
+                  <path
+                    d={pointsToPath(entry.points, true)}
+                    fill={uniqueColor}
+                    fillOpacity={isHovered ? 0.35 : 0.15}
+                    stroke={uniqueColor}
+                    strokeWidth={isReshapingThis ? 4 : isHovered ? 3 : 1.5}
+                    strokeOpacity={isHovered || isReshapingThis ? 1.0 : 0.4}
+                    strokeDasharray={isReshapingThis ? "4,4" : "none"}
+                    filter="url(#hand-drawn-edge)"
+                    style={{ pointerEvents: isDrawingMode ? 'none' : 'auto', cursor: 'pointer', transition: 'stroke-width 0.2s ease, fill-opacity 0.2s ease' }}
+                    onMouseEnter={() => setHoveredRegionId(entry.id)}
+                    onMouseMove={(e) => { setHoveredRegionId(entry.id); if (!reshapeTargetId) onHoverEntry(e, entry); }}
+                    onMouseLeave={() => { setHoveredRegionId(null); onLeaveEntry(); }}
+                    onClick={(e) => { e.stopPropagation(); onClickEntry(entry); }}
+                    onDoubleClick={(e) => { e.stopPropagation(); onDoubleClickEntry(entry); }}
+                  />
+                  {!isReshapingThis && (
+                    <text x={center.x} y={center.y} fill={uniqueColor}
+                      fillOpacity={isHovered ? 1.0 : 0.5}
+                      fontFamily="serif" fontSize="13" fontWeight="bold" textAnchor="middle"
+                      className="pointer-events-none tracking-[0.25em] uppercase"
+                      style={{ transition: 'fill-opacity 0.4s ease', textShadow: '0px 2px 8px rgba(0,0,0,0.9)' }}
+                    >{entry.name}</text>
+                  )}
+                </g>
+              );
+            })}
 
-      {/* 3. POINT LANDMARKS */}
-      {showLandmarks && visibleData.map((entry) => {
-        if (!entry.points || entry.type !== 'landmark') return null;
-        const [x, y] = entry.points;
-        const uniqueColor = entry.color || 'rgb(var(--color-primary))';
-        const s = 10;
+            {/* Roads */}
+            {showLandmarks && shapes.map((entry) => {
+              if (!entry.points || entry.type !== 'road') return null;
+              const uniqueColor = entry.color || 'rgb(var(--color-primary))';
+              const isReshapingThis = reshapeTargetId === entry.id;
+              const lineStyle = entry.lineStyle || 'solid';
+              const evtProps = {
+                style: { pointerEvents: isDrawingMode ? 'none' : 'auto', cursor: 'pointer' },
+                onMouseMove: (e) => !reshapeTargetId && onHoverEntry(e, entry),
+                onMouseLeave: onLeaveEntry,
+                onClick: (e) => { e.stopPropagation(); onClickEntry(entry); },
+                onDoubleClick: (e) => { e.stopPropagation(); onDoubleClickEntry(entry); },
+              };
+              if (lineStyle === 'double') {
+                return (
+                  <g key={entry.id} {...evtProps}>
+                    <path d={pointsToPath(entry.points, false)} fill="none" stroke={uniqueColor}
+                      strokeWidth={isReshapingThis ? 9 : 7} strokeDasharray={isReshapingThis ? '6,4' : 'none'}
+                      filter="url(#leylineGlow)" />
+                    <path d={pointsToPath(entry.points, false)} fill="none" stroke="rgba(0,0,0,0.85)"
+                      strokeWidth={isReshapingThis ? 5 : 3} strokeDasharray={isReshapingThis ? '6,4' : 'none'}
+                      style={{ pointerEvents: 'none' }} />
+                  </g>
+                );
+              }
+              return (
+                <path key={entry.id} d={pointsToPath(entry.points, false)} fill="none"
+                  stroke={uniqueColor} strokeWidth={isReshapingThis ? 6 : 4}
+                  strokeDasharray={getDash(lineStyle, isReshapingThis)}
+                  filter="url(#leylineGlow)" {...evtProps} />
+              );
+            })}
 
-        return (
-          <g
-            key={entry.id}
-            style={{ pointerEvents: isDrawingMode ? 'none' : 'auto', cursor: 'pointer' }}
-            onMouseMove={(e) => !reshapeTargetId && onHoverEntry(e, entry)}
-            onMouseLeave={onLeaveEntry}
-            onClick={(e) => { e.stopPropagation(); onClickEntry(entry); }}
-            onDoubleClick={(e) => { e.stopPropagation(); onDoubleClickEntry(entry); }}
-          >
-            <polygon
-              points={`${x},${y - s*2.4} ${x + s*2.4},${y} ${x},${y + s*2.4} ${x - s*2.4},${y}`}
-              fill={uniqueColor} fillOpacity={0} stroke={uniqueColor} strokeWidth={1}
-              style={{ animation: 'landmarkHalo 4s ease-in-out infinite', transformOrigin: `${x}px ${y}px` }}
-            />
-            <polygon
-              points={`${x},${y - s} ${x + s},${y} ${x},${y + s} ${x - s},${y}`}
-              fill={uniqueColor} stroke="none"
-              style={{ animation: 'landmarkCore 4s ease-in-out infinite' }}
-            />
+            {/* Landmarks */}
+            {showLandmarks && shapes.map((entry) => {
+              if (!entry.points || entry.type !== 'landmark') return null;
+              const [x, y] = entry.points;
+              const uniqueColor = entry.color || 'rgb(var(--color-primary))';
+              const s = 10;
+              return (
+                <g key={entry.id}
+                  style={{ pointerEvents: isDrawingMode ? 'none' : 'auto', cursor: 'pointer' }}
+                  onMouseMove={(e) => !reshapeTargetId && onHoverEntry(e, entry)}
+                  onMouseLeave={onLeaveEntry}
+                  onClick={(e) => { e.stopPropagation(); onClickEntry(entry); }}
+                  onDoubleClick={(e) => { e.stopPropagation(); onDoubleClickEntry(entry); }}
+                >
+                  <polygon
+                    points={`${x},${y - s*2.4} ${x + s*2.4},${y} ${x},${y + s*2.4} ${x - s*2.4},${y}`}
+                    fill={uniqueColor} fillOpacity={0} stroke={uniqueColor} strokeWidth={1}
+                    style={{ animation: 'landmarkHalo 4s ease-in-out infinite', transformOrigin: `${x}px ${y}px` }}
+                  />
+                  <polygon
+                    points={`${x},${y - s} ${x + s},${y} ${x},${y + s} ${x - s},${y}`}
+                    fill={uniqueColor} stroke="none"
+                    style={{ animation: 'landmarkCore 4s ease-in-out infinite' }}
+                  />
+                </g>
+              );
+            })}
           </g>
         );
       })}

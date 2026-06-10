@@ -344,7 +344,7 @@ function App() {
   const currentMap = maps.find(m => m.id === activeMapId) || maps[0] || { id: 'empty', name: 'VOID', data: [] };
   const mapData = currentMap.data;
   const textLabels = currentMap.textLabels || [];
-  const mapLayers = currentMap.layers || [{ id: 'base', name: 'BASE', visible: true }];
+  const mapLayers = currentMap.layers || [{ id: 'base', name: 'BASE', visible: true, opacity: 1 }];
 
   const setMapData = React.useCallback((updater) => {
     setMaps(prev =>
@@ -370,7 +370,7 @@ function App() {
     setMaps(prev =>
         prev.map(m => {
             if (m.id !== activeMapId) return m;
-            const current = m.layers || [{ id: 'base', name: 'BASE', visible: true }];
+            const current = m.layers || [{ id: 'base', name: 'BASE', visible: true, opacity: 1 }];
             return { ...m, layers: typeof updater === 'function' ? updater(current) : updater };
         })
     );
@@ -378,7 +378,7 @@ function App() {
 
   // Reset active layer when switching planes
   useEffect(() => {
-    const layers = currentMap.layers || [{ id: 'base', name: 'BASE', visible: true }];
+    const layers = currentMap.layers || [{ id: 'base', name: 'BASE', visible: true, opacity: 1 }];
     setActiveLayerId(layers[0]?.id || 'base');
   }, [activeMapId]); // eslint-disable-line
 
@@ -885,7 +885,7 @@ function App() {
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                  <div data-tutorial="import-export" style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                     <input ref={importFileRef} type="file" accept=".json" onChange={handleImportFile} className="hidden"/>
                     <button onClick={() => importFileRef.current?.click()} className="ghost-btn">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -941,7 +941,7 @@ function App() {
                 )}
 
                 {/* ===== PLANES GRID ===== */}
-                <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 26, alignItems: 'stretch' }}>
+                <div data-tutorial="planes-grid" ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 26, alignItems: 'stretch' }}>
                   {maps.map((m, idx) => {
                     const isActive = m.id === activeMapId;
                     const entryCount = m.data?.length || 0;

@@ -255,9 +255,17 @@ const MapComponent = ({
   };
 
   const handleAddLayer = () => {
-    const newLayer = { id: `layer-${Date.now()}`, name: `LAYER ${(layers || []).length + 1}`, visible: true };
+    const newLayer = { id: `layer-${Date.now()}`, name: `LAYER ${(layers || []).length + 1}`, visible: true, opacity: 1 };
     if (setLayers) setLayers(prev => [...prev, newLayer]);
     if (setActiveLayerId) setActiveLayerId(newLayer.id);
+  };
+
+  const handleReorderLayers = (newOrder) => {
+    if (setLayers) setLayers(newOrder);
+  };
+
+  const handleSetLayerOpacity = (id, value) => {
+    if (setLayers) setLayers(prev => prev.map(l => l.id === id ? { ...l, opacity: value } : l));
   };
 
   const handleRenameLayer = (id, name) => {
@@ -723,6 +731,8 @@ const MapComponent = ({
                   onAddLayer={handleAddLayer}
                   onRenameLayer={handleRenameLayer}
                   onDeleteLayer={handleDeleteLayer}
+                  onReorderLayers={handleReorderLayers}
+                  onSetLayerOpacity={handleSetLayerOpacity}
                   onClose={() => setShowLayersPanel(false)}
                 />
               )}

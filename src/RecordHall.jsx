@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import BracketCorners from './BracketCorners';
 import { preprocessLinks } from './utils/links';
 import RecordGraph from './RecordGraph';
@@ -190,14 +191,16 @@ const RecordHall = ({
   }, [activeExpandedField]);
 
   const rhMdTools = [
-    { label: 'B',   title: 'Bold',        fn: () => insertMd('**', '**', 'bold text')  },
-    { label: 'I',   title: 'Italic',      fn: () => insertMd('*', '*', 'italic text')  },
-    { label: 'H1',  title: 'Heading 1',   fn: () => insertMd('# ', '', 'Heading')      },
-    { label: 'H2',  title: 'Heading 2',   fn: () => insertMd('## ', '', 'Heading')     },
-    { label: 'H3',  title: 'Heading 3',   fn: () => insertMd('### ', '', 'Heading')    },
-    { label: '❝',   title: 'Blockquote',  fn: () => insertMd('> ', '', 'quote')        },
-    { label: '`_`', title: 'Inline code', fn: () => insertMd('`', '`', 'code')         },
-    { label: '—',   title: 'Divider',     fn: () => insertMd('\n\n---\n\n', '', '')    },
+    { label: 'B',   title: 'Bold',              fn: () => insertMd('**', '**', 'bold text')  },
+    { label: 'I',   title: 'Italic',            fn: () => insertMd('*', '*', 'italic text')  },
+    { label: '~~',  title: 'Strikethrough',      fn: () => insertMd('~~', '~~', 'text')       },
+    { label: 'H1',  title: 'Heading 1',         fn: () => insertMd('# ', '', 'Heading')      },
+    { label: 'H2',  title: 'Heading 2',         fn: () => insertMd('## ', '', 'Heading')     },
+    { label: 'H3',  title: 'Heading 3',         fn: () => insertMd('### ', '', 'Heading')    },
+    { label: '❝',   title: 'Blockquote',        fn: () => insertMd('> ', '', 'quote')        },
+    { label: '`_`', title: 'Inline code',       fn: () => insertMd('`', '`', 'code')         },
+    { label: '—',   title: 'Divider',           fn: () => insertMd('\n\n---\n\n', '', '')    },
+    { label: '⊞',   title: 'Insert table',      fn: () => insertMd('\n\n| Column | Column |\n|---|---|\n| | |\n\n', '', '') },
   ];
 
 
@@ -264,7 +267,7 @@ const RecordHall = ({
 
   // ================= FILTER LOGIC =================
   const filteredRecords = useMemo(() => {
-    return mapData.filter((entry) => {
+    const filtered = mapData.filter((entry) => {
       const searchTarget = `${entry.name || ''} ${entry.summary || ''} ${entry.characters || ''}`.toLowerCase();
       const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
       const matchesFilter = activeTypeFilter === 'all' || entry.subdivision === activeTypeFilter || entry.type === activeTypeFilter;
@@ -272,6 +275,7 @@ const RecordHall = ({
       const matchesParent = (entry.parentId || null) === currentFolderId;
       return matchesParent && matchesFilter;
     });
+    return filtered.sort((a, b) => (b.isFavourite ? 1 : 0) - (a.isFavourite ? 1 : 0));
   }, [mapData, searchQuery, activeTypeFilter, currentFolderId]);
 
   // ================= CRUD =================
@@ -383,6 +387,11 @@ const RecordHall = ({
     setMoveTargetId(null);
   };
 
+  const toggleFavourite = (id, e) => {
+    e.stopPropagation();
+    setMapData(mapData.map(entry => entry.id === id ? { ...entry, isFavourite: !entry.isFavourite } : entry));
+  };
+
   const handleImageAppend = (e) => {
     Array.from(e.target.files).forEach(file => {
       const reader = new FileReader();
@@ -414,7 +423,7 @@ const RecordHall = ({
   // ================= CARD GRID =================
   const renderCardGrid = (records, ref) => (
       <div ref={ref} className="grid md:grid-cols-2 gap-3">
-        {records.map((entry) => (
+        {records.map((entry, index) => (
             <div
                 key={entry.id}
                 data-recid={entry.id}
@@ -430,37 +439,57 @@ const RecordHall = ({
                 className="card-arcane relative group cursor-pointer p-5 flex flex-col justify-between gap-4 animate-fadeIn"
                 style={{
                   borderRadius: '4px',
+                  borderLeft: entry.isFolder ? undefined : `2px solid ${entry.color || 'rgba(var(--color-primary), 0.35)'}`,
                   borderColor: entry.isFolder ? 'rgba(var(--color-primary), 0.22)' : undefined,
+                  animationDelay: `${index * 30}ms`,
+                  animationFillMode: 'both',
                 }}
             >
               <BracketCorners size={7} opacity={entry.isFolder ? 0.4 : 0.15} />
 
               <div className="space-y-2">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    {entry.isFolder ? (
-                        <span className="text-sm" style={{ color: entry.color || 'rgb(var(--color-primary))' }}>◈</span>
-                    ) : (
-                        <div
-                            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                            style={{
-                              backgroundColor: entry.color || 'rgb(var(--color-primary))',
-                              boxShadow: `0 0 4px ${entry.color || 'rgb(var(--color-primary))'}`
-                            }}
-                        />
-                    )}
-                    <h4 className="font-display text-[12px] tracking-[0.12em] text-gray-200 uppercase">
+                <div className="flex items-start gap-2">
+                  {entry.isFolder ? (
+                      <span className="text-sm flex-shrink-0" style={{ color: entry.color || 'rgb(var(--color-primary))' }}>◈</span>
+                  ) : (
+                      <div
+                          className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-[3px]"
+                          style={{
+                            backgroundColor: entry.color || 'rgb(var(--color-primary))',
+                            boxShadow: `0 0 4px ${entry.color || 'rgb(var(--color-primary))'}`
+                          }}
+                      />
+                  )}
+                  <div className="flex flex-col gap-2 min-w-0 pr-5">
+                    <h4 className="font-display text-[12px] tracking-[0.12em] text-gray-200 uppercase leading-tight">
                       {entry.name || "UNNAMED"}
                     </h4>
+                    <span className="type-badge self-start">
+                      {entry.isFolder ? "COMPENDIUM" : (entry.subdivision || entry.type || "region")}
+                    </span>
                   </div>
-                  <span className="type-badge">
-                {entry.isFolder ? "COMPENDIUM" : (entry.subdivision || entry.type || "region")}
-              </span>
                 </div>
                 <p className="font-mono text-[10px] text-gray-600 leading-relaxed line-clamp-2">
                   {entry.summary || "No description cataloged."}
                 </p>
               </div>
+
+              {/* Star — always rendered; filled + opaque when favourited, faint until hovered otherwise */}
+              {!isFocusMode && !entry.isFolder && (
+                  <button
+                      onClick={(e) => toggleFavourite(entry.id, e)}
+                      title={entry.isFavourite ? 'Unpin from favourites' : 'Pin to favourites'}
+                      className="absolute top-2.5 right-2.5 font-mono text-[17px] transition-all duration-200"
+                      style={{
+                        color: entry.isFavourite ? 'rgb(var(--color-primary))' : 'rgba(var(--color-primary), 0.15)',
+                        lineHeight: 1,
+                        zIndex: 2,
+                        textShadow: entry.isFavourite ? '0 0 8px rgba(var(--color-primary), 0.5)' : 'none',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.transform = 'scale(1.2)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = entry.isFavourite ? 'rgb(var(--color-primary))' : 'rgba(var(--color-primary), 0.15)'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.textShadow = entry.isFavourite ? '0 0 8px rgba(var(--color-primary), 0.5)' : 'none'; }}
+                  >{entry.isFavourite ? '★' : '☆'}</button>
+              )}
 
               {!isFocusMode && (
                   <div
@@ -544,22 +573,6 @@ const RecordHall = ({
                 <BracketCorners size={6} opacity={isFormOpen ? 0.3 : 0.5} />
                 {isFormOpen ? "✕ Close Inscription Panel" : "＋ Begin New Chronicle Entry"}
               </button>
-              {mapData.filter(e => !e.isFolder).length > 0 && (
-                <button
-                  onClick={() => setShowGraph(true)}
-                  className="font-mono text-[10px] py-3 px-5 tracking-[0.22em] uppercase border transition-all duration-300"
-                  style={{
-                    borderRadius: '3px',
-                    background: 'rgba(var(--color-primary), 0.04)',
-                    borderColor: 'rgba(var(--color-primary), 0.18)',
-                    color: 'rgba(var(--color-primary), 0.65)',
-                    boxShadow: '0 0 16px rgba(var(--color-primary), 0.04)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.1)'; e.currentTarget.style.color = 'rgb(var(--color-primary))'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.04)'; e.currentTarget.style.color = 'rgba(var(--color-primary), 0.65)'; }}
-                  title="View record connection web"
-                >◈ Web</button>
-              )}
             </div>
         )}
 
@@ -823,19 +836,23 @@ const RecordHall = ({
                         </button>
                     ))}
                   </div>
-                  {!isFocusMode && mapData.filter(e => !e.isFolder).length > 0 && (
-                    <button
-                      onClick={() => {
-                        const nonFolders = mapData.filter(e => !e.isFolder);
-                        const content = nonFolders.map(formatRecord).join('\n\n---\n\n');
-                        saveMarkdown(content, 'chronicle_export.md');
-                      }}
-                      className="font-mono uppercase tracking-widest transition-all duration-200 flex-shrink-0"
-                      style={{ fontSize: 9, padding: '6px 10px', borderRadius: '3px', background: 'rgba(var(--color-primary), 0.07)', color: 'rgba(var(--color-primary), 0.55)', border: '1px solid rgba(var(--color-primary), 0.13)' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.14)'; e.currentTarget.style.color = 'rgb(var(--color-primary))'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.07)'; e.currentTarget.style.color = 'rgba(var(--color-primary), 0.55)'; }}
-                      title="Export all records as Markdown"
-                    >↓ Export All</button>
+                  {mapData.filter(e => !e.isFolder).length > 0 && (
+                    <>
+                      <div style={{ width: 1, height: 18, background: 'rgba(var(--color-primary), 0.12)', flexShrink: 0 }} />
+                      <button
+                        onClick={() => setShowGraph(true)}
+                        className="font-mono text-[9px] px-3 py-1.5 uppercase tracking-widest transition-all duration-200 flex-shrink-0"
+                        style={{
+                          borderRadius: '2px',
+                          background: 'transparent',
+                          color: '#4b5563',
+                          border: '1px solid transparent',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.7)'; e.currentTarget.style.border = '1px solid rgba(var(--color-primary), 0.12)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.border = '1px solid transparent'; }}
+                        title="View record connection web"
+                      >◈ Web</button>
+                    </>
                   )}
                 </div>
               </div>
@@ -858,18 +875,32 @@ const RecordHall = ({
               </div>
 
               {filteredRecords.length === 0 ? (
-                  <div
-                      className="text-center py-16 animate-fadeIn"
-                      style={{
-                        border: '1px dashed rgba(var(--color-primary), 0.08)',
-                        borderRadius: '4px',
-                        background: 'rgba(0,0,0,0.1)',
-                      }}
-                  >
-              <span className="font-mono text-[10px] text-gray-700 uppercase tracking-widest">
-                No traces match current parameters.
-              </span>
-                  </div>
+                  searchQuery ? (
+                      <div className="text-center py-16 animate-fadeIn flex flex-col items-center gap-4"
+                          style={{ border: '1px dashed rgba(var(--color-primary), 0.08)', borderRadius: '4px', background: 'rgba(0,0,0,0.1)' }}>
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ opacity: 0.18 }}>
+                          <circle cx="13" cy="13" r="8" stroke="rgb(var(--color-primary))" strokeWidth="1.5"/>
+                          <line x1="19" y1="19" x2="27" y2="27" stroke="rgb(var(--color-primary))" strokeWidth="1.5" strokeLinecap="round"/>
+                          <line x1="10" y1="10" x2="16" y2="16" stroke="rgb(var(--color-primary))" strokeWidth="1.5" strokeLinecap="round"/>
+                          <line x1="16" y1="10" x2="10" y2="16" stroke="rgb(var(--color-primary))" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                        <span className="font-mono text-[10px] text-gray-600 uppercase tracking-widest">No traces match these parameters.</span>
+                        <span className="font-mono text-[9px] text-gray-800 uppercase tracking-widest">Try a different search.</span>
+                      </div>
+                  ) : (
+                      <div className="text-center py-16 animate-fadeIn flex flex-col items-center gap-4"
+                          style={{ border: '1px dashed rgba(var(--color-primary), 0.08)', borderRadius: '4px', background: 'rgba(0,0,0,0.1)' }}>
+                        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" style={{ opacity: 0.18 }}>
+                          <path d="M8 28 L8 10 Q8 8 10 8 L22 8 L28 14 L28 28 Q28 30 26 30 L10 30 Q8 30 8 28Z" stroke="rgb(var(--color-primary))" strokeWidth="1.5" fill="none"/>
+                          <path d="M22 8 L22 14 L28 14" stroke="rgb(var(--color-primary))" strokeWidth="1.5" fill="none"/>
+                          <line x1="12" y1="18" x2="24" y2="18" stroke="rgb(var(--color-primary))" strokeWidth="1" strokeLinecap="round" strokeDasharray="2 2"/>
+                          <line x1="12" y1="22" x2="20" y2="22" stroke="rgb(var(--color-primary))" strokeWidth="1" strokeLinecap="round" strokeDasharray="2 2"/>
+                          <path d="M14 8 Q14 5 18 4 Q22 5 22 8" stroke="rgb(var(--color-primary))" strokeWidth="1" fill="none"/>
+                        </svg>
+                        <span className="font-mono text-[10px] text-gray-600 uppercase tracking-widest">The archive holds no inscriptions.</span>
+                        <span className="font-mono text-[9px] text-gray-800 uppercase tracking-widest">Begin the chronicle.</span>
+                      </div>
+                  )
               ) : renderCardGrid(filteredRecords, gridRef)}
             </div>
         )}
@@ -956,16 +987,16 @@ const RecordHall = ({
                 </div>
 
                 {filteredRecords.length === 0 ? (
-                    <div
-                        className="text-center py-20"
-                        style={{ border: '1px dashed rgba(var(--color-primary), 0.07)', borderRadius: '4px' }}
-                    >
-                <span className="font-mono text-[9px] text-gray-700 uppercase tracking-widest block">
-                  This compendium is empty.
-                </span>
-                      <span className="font-mono text-[8px] text-gray-800 uppercase tracking-widest mt-2 block">
-                  Add an entry from the left panel.
-                </span>
+                    <div className="text-center py-20 flex flex-col items-center gap-4 animate-fadeIn"
+                        style={{ border: '1px dashed rgba(var(--color-primary), 0.07)', borderRadius: '4px' }}>
+                      <svg width="34" height="34" viewBox="0 0 34 34" fill="none" style={{ opacity: 0.16 }}>
+                        <rect x="4" y="16" width="26" height="14" rx="2" stroke="rgb(var(--color-primary))" strokeWidth="1.5"/>
+                        <path d="M4 20 Q17 14 30 20" stroke="rgb(var(--color-primary))" strokeWidth="1.5" fill="none"/>
+                        <path d="M12 16 L12 10 Q12 6 17 6 Q22 6 22 10 L22 16" stroke="rgb(var(--color-primary))" strokeWidth="1.5" fill="none"/>
+                        <circle cx="17" cy="23" r="2" stroke="rgb(var(--color-primary))" strokeWidth="1"/>
+                      </svg>
+                      <span className="font-mono text-[9px] text-gray-600 uppercase tracking-widest block">This chamber holds no records.</span>
+                      <span className="font-mono text-[8px] text-gray-800 uppercase tracking-widest block">Add an entry from the left panel.</span>
                     </div>
                 ) : renderCardGrid(filteredRecords, gridRef)}
               </div>
@@ -1049,7 +1080,7 @@ const RecordHall = ({
                             style={{ background: 'rgba(var(--color-primary), 0.04)', border: '1px solid rgba(var(--color-primary), 0.08)', fontSize: 12 }}
                         >
                           {fullscreenRecord.characters
-                            ? <ReactMarkdown components={mdComponents} urlTransform={url => url}>{preprocessLinks(fullscreenRecord.characters)}</ReactMarkdown>
+                            ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents} urlTransform={url => url}>{preprocessLinks(fullscreenRecord.characters)}</ReactMarkdown>
                             : <span style={{ color: 'rgba(var(--color-primary-soft), 0.3)', fontStyle: 'italic' }}>No identities tracked.</span>
                           }
                         </div>
@@ -1062,7 +1093,7 @@ const RecordHall = ({
                         <span className="field-label">Chronicle Lore</span>
                         <div className="record-lore-block journal-prose" style={{ fontSize: 13 }}>
                           {fullscreenRecord.lore
-                            ? <ReactMarkdown components={mdComponents} urlTransform={url => url}>{preprocessLinks(fullscreenRecord.lore)}</ReactMarkdown>
+                            ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents} urlTransform={url => url}>{preprocessLinks(fullscreenRecord.lore)}</ReactMarkdown>
                             : <span style={{ color: 'rgba(var(--color-primary-soft), 0.3)', fontStyle: 'italic' }}>No narratives mapped.</span>
                           }
                         </div>

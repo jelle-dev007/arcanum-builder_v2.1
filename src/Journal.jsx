@@ -1,7 +1,27 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { preprocessLinks } from './utils/links';
+
+// ── Export helper ─────────────────────────────────────────────────────────────
+
+const saveEntryFile = async (entry) => {
+  const content = `# ${entry.title || 'Untitled'}\n\n${entry.content || ''}`;
+  const filename = `${(entry.title || 'entry').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`;
+  if (typeof window !== 'undefined' && window.require) {
+    try {
+      const { ipcRenderer } = window.require('electron');
+      await ipcRenderer.invoke('save-file', { data: content, filename });
+      return;
+    } catch {}
+  }
+  const blob = new Blob([content], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,14 +83,15 @@ const load = (realmId) => {
 
 // ── Sidebar entry row ─────────────────────────────────────────────────────────
 
-const EntryRow = ({ entry, depth, selectedId, expandedIds, onSelect, onToggleExpand, onAddChild, onDelete }) => {
+const EntryRow = ({ entry, depth, selectedId, expandedIds, onSelect, onToggleExpand, onAddChild, onDelete, exitingId }) => {
   const isSelected  = entry.id === selectedId;
   const isExpanded  = expandedIds.has(entry.id);
   const hasChildren = entry.children.length > 0;
+  const isExiting   = entry.id === exitingId;
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   return (
-    <div>
+    <div className={isExiting ? 'journal-row-exit' : ''}>
       <div
         className="group flex items-center cursor-pointer rounded transition-colors duration-150"
         style={{
@@ -159,6 +180,7 @@ const EntryRow = ({ entry, depth, selectedId, expandedIds, onSelect, onToggleExp
           onToggleExpand={onToggleExpand}
           onAddChild={onAddChild}
           onDelete={onDelete}
+          exitingId={exitingId}
         />
       ))}
     </div>
@@ -195,6 +217,7 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
   const [fullscreen,  setFullscreen]  = useState(false);
   const [preview,     setPreview]     = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [exitingId,   setExitingId]   = useState(null);
 
   // Chronicle link state
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -243,8 +266,12 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
   };
 
   const deleteEntry = (id) => {
-    setEntries(prev => removeEntry(prev, id));
-    if (selectedId === id) setSelectedId(null);
+    setExitingId(id);
+    setTimeout(() => {
+      setEntries(prev => removeEntry(prev, id));
+      if (selectedId === id) setSelectedId(null);
+      setExitingId(null);
+    }, 300);
   };
 
   const toggleExpand = (id) => {
@@ -322,15 +349,17 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
   }, [selectedId]); // eslint-disable-line
 
   const mdTools = [
-    { label: 'B',   title: 'Bold',        fn: () => insert('**', '**', 'bold text')     },
-    { label: 'I',   title: 'Italic',      fn: () => insert('*', '*', 'italic text')     },
-    { label: 'H1',  title: 'Heading 1',   fn: () => insert('# ', '', 'Heading')         },
-    { label: 'H2',  title: 'Heading 2',   fn: () => insert('## ', '', 'Heading')        },
-    { label: 'H3',  title: 'Heading 3',   fn: () => insert('### ', '', 'Heading')       },
-    { label: '❝',   title: 'Blockquote',  fn: () => insert('> ', '', 'quote')           },
-    { label: '`_`', title: 'Inline code', fn: () => insert('`', '`', 'code')            },
-    { label: '```', title: 'Code block',  fn: () => insert('```\n', '\n```', 'code')    },
-    { label: '—',   title: 'Divider',     fn: () => insert('\n\n---\n\n', '', '')       },
+    { label: 'B',   title: 'Bold',              fn: () => insert('**', '**', 'bold text')     },
+    { label: 'I',   title: 'Italic',            fn: () => insert('*', '*', 'italic text')     },
+    { label: '~~',  title: 'Strikethrough',      fn: () => insert('~~', '~~', 'text')          },
+    { label: 'H1',  title: 'Heading 1',         fn: () => insert('# ', '', 'Heading')         },
+    { label: 'H2',  title: 'Heading 2',         fn: () => insert('## ', '', 'Heading')        },
+    { label: 'H3',  title: 'Heading 3',         fn: () => insert('### ', '', 'Heading')       },
+    { label: '❝',   title: 'Blockquote',        fn: () => insert('> ', '', 'quote')           },
+    { label: '`_`', title: 'Inline code',       fn: () => insert('`', '`', 'code')            },
+    { label: '```', title: 'Code block',        fn: () => insert('```\n', '\n```', 'code')    },
+    { label: '—',   title: 'Divider',           fn: () => insert('\n\n---\n\n', '', '')       },
+    { label: '⊞',   title: 'Insert table',      fn: () => insert('\n\n| Column | Column |\n|---|---|\n| | |\n\n', '', '') },
   ];
 
   // ── Layout ────────────────────────────────────────────────────────────
@@ -464,6 +493,7 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
                   onToggleExpand={toggleExpand}
                   onAddChild={addChildEntry}
                   onDelete={deleteEntry}
+                  exitingId={exitingId}
                 />
               ))
             )}
@@ -527,6 +557,21 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
             />
           )}
 
+          {/* Export current entry */}
+          {selected && !isFocusMode && (
+            <>
+              <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.1)', margin: '0 2px' }} />
+              <button
+                onClick={() => saveEntryFile(selected)}
+                title="Export entry as .md file"
+                className="font-mono transition-colors duration-150"
+                style={{ fontSize: 11, color: 'rgba(var(--color-primary), 0.4)', padding: '4px 6px' }}
+                onMouseEnter={e => e.currentTarget.style.color = 'rgba(var(--color-primary), 0.8)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(var(--color-primary), 0.4)'}
+              >↓</button>
+            </>
+          )}
+
           {/* Divider */}
           <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.1)', margin: '0 6px' }} />
 
@@ -582,7 +627,7 @@ export default function Journal({ isFocusMode, mapData = [], onNavigateToRecord,
           ) : preview ? (
             <div className="w-full h-full overflow-y-auto arcane-scroll px-10 py-6 journal-prose">
               {selected.content
-                ? <ReactMarkdown components={mdComponents} urlTransform={url => url}>{preprocessLinks(selected.content)}</ReactMarkdown>
+                ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents} urlTransform={url => url}>{preprocessLinks(selected.content)}</ReactMarkdown>
                 : <p style={{ color: 'rgba(var(--color-primary-soft), 0.22)', fontStyle: 'italic', fontSize: 14 }}>Nothing written yet.</p>
               }
             </div>

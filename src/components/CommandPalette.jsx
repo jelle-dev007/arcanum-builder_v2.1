@@ -33,8 +33,9 @@ const CommandPalette = ({
 
     const records = (mapData || [])
       .filter(r => !r.isFolder && (r.name || '').toLowerCase().includes(q))
+      .sort((a, b) => (b.isFavourite ? 1 : 0) - (a.isFavourite ? 1 : 0))
       .slice(0, 8)
-      .map(r => ({ type: 'record', id: r.id, name: r.name, sub: r.subdivision || r.type, color: r.color }));
+      .map(r => ({ type: 'record', id: r.id, name: r.isFavourite ? `★ ${r.name}` : r.name, sub: r.subdivision || r.type, color: r.color }));
 
     const planeResults = (planes || [])
       .filter(p => (p.name || '').toLowerCase().includes(q))
