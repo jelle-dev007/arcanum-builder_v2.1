@@ -13,7 +13,7 @@ const STEPS = [
     view: 'home',
     selector: '[data-tutorial="import-export"]',
     title: 'Import & Export',
-    body: 'Save your entire archive as a JSON file, or restore a previous session. Data lives in local storage — keep it backed up.',
+    body: "IMPORT restores a previous session. EXPORT opens three options: Archive (.json) backs up everything; Markdown Book (.md) exports the active plane's records and journal as readable text for Obsidian or Notion; Webpage (.html) creates a shareable file anyone can open in a browser.",
     position: 'bottom',
   },
   // ── Map — setup ───────────────────────────────────────
@@ -21,14 +21,14 @@ const STEPS = [
     view: 'map',
     selector: '[data-tutorial="controls-bar"]',
     title: 'Map Controls',
-    body: 'All map tools live in this bar — visibility toggles, ink style, drawing type, and actions.',
+    body: 'The toolbar is arranged symmetrically around Commence Cartography. Left side: visibility toggles, Labels, and Layers. Right side: ink style, drawing type, Replace Map, and Export PNG.',
     position: 'bottom',
   },
   {
     view: 'map',
     selector: '[data-tutorial="visibility-toggles"]',
-    title: 'Visibility Layers',
-    body: 'Unchecking Territories or Landmarks & Routes hides that layer from the map. Useful for focusing on one type at a time.',
+    title: 'Visibility Toggles',
+    body: 'Unchecking Territories or Landmarks & Routes hides that group from the map — useful for focusing on one type at a time.',
     position: 'bottom',
   },
   {
@@ -43,6 +43,21 @@ const STEPS = [
     selector: '[data-tutorial="ink-style"]',
     title: 'Ink Style',
     body: "Cartographer's Hand adds organic wobble to your lines — like hand-drawn. Straight Lines gives clean, precise strokes.",
+    position: 'bottom',
+  },
+  // ── Map — labels & layers ─────────────────────────────
+  {
+    view: 'map',
+    selector: '[data-tutorial="label-btn"]',
+    title: 'Map Labels',
+    body: 'Click Labels to enter label mode, then click anywhere on the map to place floating text — ocean names, mountain ranges, unmarked cities. Double-click an existing label to connect it to a chronicle entry or create a new Place record. A small dot beneath the label means lore is attached.',
+    position: 'bottom',
+  },
+  {
+    view: 'map',
+    selector: '[data-tutorial="layers-btn"]',
+    title: 'Map Layers',
+    body: 'Open the Layers panel to organise drawings by era, faction, or theme. Drag ⠿ to reorder — layers higher in the list appear in front on the map. Toggle visibility with the eye icon, slide opacity per layer, set the active drawing layer with the circle marker, and double-click a name to rename.',
     position: 'bottom',
   },
   // ── Map — drawing ─────────────────────────────────────
@@ -79,16 +94,31 @@ const STEPS = [
     view: 'recordhall',
     selector: '[data-tutorial="record-list"]',
     title: 'Hall of Records',
-    body: 'Every drawn shape gets a Chronicle entry here. Add lore, key figures, and link records using [[id|name]] syntax. Export individual entries or the full chronicle as Markdown, or open the Web of Chronicles to see how records connect.',
-    position: 'bottom',
+    body: 'Every drawn shape — and every linked map label — gets a Chronicle entry here. When creating a new entry, pick a template (NPC, City, Faction, Ruin, Dungeon) to start with pre-filled sections. Use the filter bar to narrow by type; the ◈ Web button there opens an interactive connection graph of all your records. Link entries with [[id|name]] syntax, and export as Markdown or HTML.',
+    position: 'center',
+  },
+  {
+    view: 'recordhall',
+    selector: '[data-tutorial="record-list"]',
+    title: 'Favourites & Writing',
+    body: "Hover a record card to reveal the ☆ star — click it to pin that record to the top of the archive and make it appear first in the Command Palette. In any record's lore or key figures, use the ⊞ toolbar button to insert a Markdown table, and ~~ to strike through text.",
+    position: 'center',
   },
   // ── Journal ───────────────────────────────────────────
   {
     view: 'journal',
     selector: '[data-tutorial="journal-sidebar"]',
     title: 'The Journal',
-    body: 'A free-form writing space for your world. Create nested entries, write in Markdown, and use the search bar to filter entries by title or content.',
+    body: 'A free-form writing space for your world. Create nested entries, write in Markdown, and use the search bar to filter entries by title or content. Use ⊞ in the toolbar to insert a table, and ~~ for strikethrough.',
     position: 'right',
+  },
+  // ── Command Palette ───────────────────────────────────
+  {
+    view: 'home',
+    selector: null,
+    title: 'Command Palette',
+    body: "Press Ctrl+K from anywhere in the app to open the Command Palette — a fast search overlay that jumps to any record, plane, or journal entry by name. Starred (★) records appear first. Type a few characters and press Enter or click a result.",
+    position: 'center',
   },
 ];
 
@@ -132,7 +162,11 @@ function getCardPosition(rect, position) {
 
 const TutorialOverlay = ({ currentView, onNavigate, onFinish, isFirstLaunch = true }) => {
   const [phase, setPhase] = useState(isFirstLaunch ? 'intro' : 'steps');
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => {
+    if (isFirstLaunch) return 0;
+    const idx = STEPS.findIndex(s => s.view === currentView);
+    return idx >= 0 ? idx : 0;
+  });
   const [spotlightRect, setSpotlightRect] = useState(null);
   const [measured, setMeasured] = useState(false);
 
@@ -207,7 +241,7 @@ const TutorialOverlay = ({ currentView, onNavigate, onFinish, isFirstLaunch = tr
   const cardPos = phase === 'steps' ? getCardPosition(spotlightRect, currentStep.position) : {};
 
   const cardBase = {
-    position: 'absolute',
+    position: 'fixed',
     zIndex: 10001,
     width: CARD_W,
     background: 'linear-gradient(145deg, rgba(12,11,16,0.98), rgba(8,7,12,0.99))',
@@ -219,7 +253,7 @@ const TutorialOverlay = ({ currentView, onNavigate, onFinish, isFirstLaunch = tr
   return (
     <>
       {/* Backdrop — always present, never flickers */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 10000, pointerEvents: 'none' }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 10000, pointerEvents: 'none' }}>
         {phase === 'steps' && measured && spotlightRect ? (
           <div style={{
             position: 'absolute',
