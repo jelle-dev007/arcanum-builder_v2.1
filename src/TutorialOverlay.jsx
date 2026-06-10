@@ -13,7 +13,7 @@ const STEPS = [
     view: 'home',
     selector: '[data-tutorial="import-export"]',
     title: 'Import & Export',
-    body: 'Save your entire archive as a JSON file, or restore a previous session. Data lives in local storage — keep it backed up.',
+    body: "IMPORT restores a previous session. EXPORT opens three options: Archive (.json) backs up everything; Markdown Book (.md) exports the active plane's records and journal as readable text for Obsidian or Notion; Webpage (.html) creates a shareable file anyone can open in a browser.",
     position: 'bottom',
   },
   // ── Map — setup ───────────────────────────────────────

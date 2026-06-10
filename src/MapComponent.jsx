@@ -3,10 +3,24 @@ import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { toPng } from 'html-to-image';
 import DrawingLayer from './DrawingLayer';
 import BracketCorners from './BracketCorners';
+import FloatingLayersPanel from './components/FloatingLayersPanel';
 import { CANVAS_W, CANVAS_H, DEFAULT_REGION_COLOR, DEFAULT_LANDMARK_COLOR } from './constants';
 
-const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, updateMapImage, isFocusMode }) => {
+const MapComponent = ({
+  mapData, setMapData,
+  onNavigateToRecord,
+  currentMap,
+  updateMapImage,
+  isFocusMode,
+  textLabels, setTextLabels,
+  layers, activeLayerId, setLayers, setActiveLayerId,
+}) => {
   const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [isLabelMode, setIsLabelMode] = useState(false);
+  const [showLayersPanel, setShowLayersPanel] = useState(false);
+  const [pendingLabelPos, setPendingLabelPos] = useState(null);
+  const [labelText, setLabelText] = useState('');
+  const [labelColor, setLabelColor] = useState('#c9a84c');
   const [creationType, setCreationType] = useState('region');
   const [currentPoints, setCurrentPoints] = useState([]);
   const [showRegions, setShowRegions] = useState(true);
@@ -56,6 +70,8 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
       if (e.key === 'Escape') {
         if (reshapeTargetId) setReshapeTargetId(null);
         if (isDrawingMode) exitDrawingMode();
+        if (isLabelMode) setIsLabelMode(false);
+        if (pendingLabelPos) setPendingLabelPos(null);
       }
       if (isDrawingMode && e.ctrlKey && e.key === 'z') {
         e.preventDefault();
@@ -74,7 +90,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [reshapeTargetId, isDrawingMode, currentPoints]);
+  }, [reshapeTargetId, isDrawingMode, isLabelMode, pendingLabelPos, currentPoints]);
 
   useEffect(() => {
     if (!hoveredEntry || !hoveredEntry.images || hoveredEntry.images.length <= 1) {
@@ -91,6 +107,9 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
       setIsQuickEditing(false);
       setReshapeTargetId(null);
       setIsDrawingMode(false);
+      setIsLabelMode(false);
+      setShowLayersPanel(false);
+      setPendingLabelPos(null);
     }
   }, [isFocusMode]);
 
@@ -134,6 +153,76 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
     }
   };
 
+  const handleLabelClick = (x, y) => {
+    setPendingLabelPos({ x, y });
+    setLabelText('');
+    setLabelColor('#c9a84c');
+  };
+
+  const commitLabel = () => {
+    if (!labelText.trim() || !pendingLabelPos) return;
+    if (pendingLabelPos.editingId) {
+      if (setTextLabels) setTextLabels(prev =>
+        prev.map(l => l.id === pendingLabelPos.editingId
+          ? { ...l, text: labelText.trim().toUpperCase(), color: labelColor }
+          : l
+        )
+      );
+    } else {
+      const newLabel = {
+        id: Date.now(),
+        x: pendingLabelPos.x,
+        y: pendingLabelPos.y,
+        text: labelText.trim().toUpperCase(),
+        color: labelColor,
+        fontSize: 20,
+      };
+      if (setTextLabels) setTextLabels(prev => [...prev, newLabel]);
+    }
+    setPendingLabelPos(null);
+    setLabelText('');
+  };
+
+  const handleEditLabel = (label) => {
+    setPendingLabelPos({ x: label.x, y: label.y, editingId: label.id });
+    setLabelText(label.text);
+    setLabelColor(label.color || '#c9a84c');
+  };
+
+  const handleDeleteLabel = (labelId) => {
+    if (setTextLabels) setTextLabels(prev => prev.filter(l => l.id !== labelId));
+  };
+
+  const handleMoveLabel = (labelId, newX, newY) => {
+    if (setTextLabels) setTextLabels(prev =>
+      prev.map(l => l.id === labelId ? { ...l, x: newX, y: newY } : l)
+    );
+  };
+
+  const handleAddLayer = () => {
+    const newLayer = { id: `layer-${Date.now()}`, name: `LAYER ${(layers || []).length + 1}`, visible: true };
+    if (setLayers) setLayers(prev => [...prev, newLayer]);
+    if (setActiveLayerId) setActiveLayerId(newLayer.id);
+  };
+
+  const handleRenameLayer = (id, name) => {
+    if (setLayers) setLayers(prev => prev.map(l => l.id === id ? { ...l, name } : l));
+  };
+
+  const handleToggleLayerVisibility = (id) => {
+    if (setLayers) setLayers(prev => prev.map(l => l.id === id ? { ...l, visible: !l.visible } : l));
+  };
+
+  const handleDeleteLayer = (id) => {
+    if (setLayers) setLayers(prev => prev.filter(l => l.id !== id));
+    // Reassign entries on that layer to the base layer
+    setMapData(prev => prev.map(e => e.layerId === id ? { ...e, layerId: null } : e));
+    if (activeLayerId === id && setActiveLayerId) {
+      const remaining = (layers || []).filter(l => l.id !== id);
+      setActiveLayerId(remaining[0]?.id || null);
+    }
+  };
+
   const executeBinding = () => {
     if (selectedEntryId === "new") {
       const newEntry = {
@@ -147,6 +236,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
         color: creationType === 'landmark' ? DEFAULT_LANDMARK_COLOR : DEFAULT_REGION_COLOR,
         images: [],
         ...(creationType === 'road' && { lineStyle: 'solid' }),
+        ...(activeLayerId ? { layerId: activeLayerId } : {}),
       };
       setMapData([...mapData, newEntry]);
     } else {
@@ -198,9 +288,12 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
     }
   };
 
-  const availableLinkOptions = mapData.filter(entry =>
-      entry.subdivision !== 'character' && entry.type !== 'character'
-  );
+  const availableLinkOptions = mapData.filter(entry => {
+    if (entry.type === 'character' || entry.subdivision === 'character') return false;
+    if (creationType === 'region') return entry.type === 'region';
+    if (creationType === 'landmark') return entry.type === 'landmark';
+    return true;
+  });
 
   const typeLabel = { region: 'Territory', landmark: 'Landmark', road: 'Route' };
 
@@ -221,7 +314,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
             {!isFocusMode && (
                 <div
                     data-tutorial="controls-bar"
-                    className="w-full max-w-4xl px-4 py-2.5 rounded flex items-center justify-center gap-3 z-20 animate-fadeIn mb-2"
+                    className="w-full px-4 py-2.5 rounded flex items-center justify-center gap-3 z-20 animate-fadeIn mb-2"
                     style={{
                       background: 'rgba(var(--color-bg-surface), 0.75)',
                       border: '1px solid rgba(var(--color-primary), 0.1)',
@@ -229,7 +322,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                     }}
                 >
                   {/* Single centred row — visibility | ink style | drawing type + actions | upload */}
-                  <div className="flex items-center gap-3 font-mono text-[9px] tracking-[0.18em] text-gray-500">
+                  <div className="flex items-center flex-wrap gap-3 gap-y-1.5 font-mono text-[9px] tracking-[0.18em] text-gray-500">
 
                     {/* Visibility toggles */}
                     <div data-tutorial="visibility-toggles" className="flex items-center gap-3">
@@ -249,8 +342,10 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
 
                     {/* Ink style */}
                     <select data-tutorial="ink-style" value={inkIntensity} onChange={(e) => setInkIntensity(Number(e.target.value))}
-                        className="font-mono text-[10px] tracking-[0.14em] cursor-pointer outline-none"
-                        style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(var(--color-primary), 0.12)', color: 'rgba(var(--color-primary), 0.85)', borderRadius: '2px', padding: '0.375rem 0.5rem', textAlign: 'center', lineHeight: '1', boxSizing: 'border-box' }}>
+                        className="font-mono text-[10px] tracking-[0.14em] cursor-pointer outline-none transition-all duration-200"
+                        style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(var(--color-primary), 0.12)', color: 'rgba(var(--color-primary), 0.85)', borderRadius: '2px', padding: '0.375rem 0.5rem', textAlign: 'center', lineHeight: '1', boxSizing: 'border-box' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.4)'; e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.boxShadow = '0 0 8px rgba(var(--color-primary), 0.14)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.12)'; e.currentTarget.style.color = 'rgba(var(--color-primary), 0.85)'; e.currentTarget.style.boxShadow = 'none'; }}>
                       <option value={15}>Cartographer's Hand</option>
                       <option value={0}>Straight Lines</option>
                     </select>
@@ -260,8 +355,10 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                     {/* Drawing type */}
                     <select data-tutorial="drawing-type" value={creationType} onChange={(e) => { setCreationType(e.target.value); setCurrentPoints([]); }}
                         disabled={isDrawingMode || !!reshapeTargetId}
-                        className="font-mono text-[10px] tracking-[0.14em] cursor-pointer outline-none"
-                        style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(var(--color-primary), 0.12)', color: 'rgba(var(--color-primary), 0.85)', borderRadius: '2px', padding: '0.375rem 0.5rem', textAlign: 'center', lineHeight: '1', boxSizing: 'border-box' }}>
+                        className="font-mono text-[10px] tracking-[0.14em] cursor-pointer outline-none transition-all duration-200"
+                        style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(var(--color-primary), 0.12)', color: 'rgba(var(--color-primary), 0.85)', borderRadius: '2px', padding: '0.375rem 0.5rem', textAlign: 'center', lineHeight: '1', boxSizing: 'border-box' }}
+                        onMouseEnter={e => { if (!isDrawingMode && !reshapeTargetId) { e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.4)'; e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.boxShadow = '0 0 8px rgba(var(--color-primary), 0.14)'; } }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.12)'; e.currentTarget.style.color = 'rgba(var(--color-primary), 0.85)'; e.currentTarget.style.boxShadow = 'none'; }}>
                       <option value="region">TERRITORY</option>
                       <option value="landmark">LANDMARK</option>
                       <option value="road">ROUTE</option>
@@ -280,6 +377,8 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                           borderColor: isDrawingMode ? 'rgba(var(--color-primary), 0.5)' : 'rgba(var(--color-primary), 0.1)',
                           boxShadow: isDrawingMode ? '0 0 12px rgba(var(--color-primary), 0.15)' : 'none',
                         }}
+                        onMouseEnter={e => { if (!isDrawingMode && !reshapeTargetId) { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.45)'; e.currentTarget.style.boxShadow = '0 0 14px rgba(var(--color-primary), 0.22)'; e.currentTarget.style.background = 'rgba(var(--color-primary), 0.07)'; } }}
+                        onMouseLeave={e => { if (!isDrawingMode) { e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.1)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = 'rgba(0,0,0,0.4)'; } }}
                     >
                       {isDrawingMode ? "Inscribing..." : "Commence Cartography"}
                     </button>
@@ -321,6 +420,44 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                         onMouseLeave={e => { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.5)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.1)'; }}
                         title="Export map as PNG">
                       ↓ Export PNG
+                    </button>
+
+                    <div style={{ width: 1, height: 16, background: 'rgba(var(--color-primary), 0.15)' }} />
+
+                    {/* Label tool */}
+                    <button
+                        onClick={() => { setIsLabelMode(!isLabelMode); setIsDrawingMode(false); setCurrentPoints([]); setReshapeTargetId(null); }}
+                        disabled={!!reshapeTargetId || isDrawingMode}
+                        title="Place text labels on the map"
+                        className="font-mono text-[9px] px-3 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
+                        style={{
+                          borderRadius: '2px',
+                          background: isLabelMode ? 'rgba(var(--color-primary), 0.12)' : 'rgba(0,0,0,0.4)',
+                          color: isLabelMode ? 'rgb(var(--color-primary))' : 'rgba(var(--color-primary), 0.5)',
+                          borderColor: isLabelMode ? 'rgba(var(--color-primary), 0.5)' : 'rgba(var(--color-primary), 0.1)',
+                          boxShadow: isLabelMode ? '0 0 12px rgba(var(--color-primary), 0.15)' : 'none',
+                        }}
+                        onMouseEnter={e => { if (!isLabelMode && !isDrawingMode && !reshapeTargetId) { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.4)'; e.currentTarget.style.boxShadow = '0 0 10px rgba(var(--color-primary), 0.16)'; } }}
+                        onMouseLeave={e => { if (!isLabelMode) { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.5)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.1)'; e.currentTarget.style.boxShadow = 'none'; } }}
+                    >
+                      T {isLabelMode ? 'Labelling…' : 'Labels'}
+                    </button>
+
+                    {/* Layers panel toggle */}
+                    <button
+                        onClick={() => setShowLayersPanel(!showLayersPanel)}
+                        title="Manage map layers"
+                        className="font-mono text-[9px] px-3 py-1.5 tracking-[0.18em] uppercase border transition-all duration-200"
+                        style={{
+                          borderRadius: '2px',
+                          background: showLayersPanel ? 'rgba(var(--color-primary), 0.12)' : 'rgba(0,0,0,0.4)',
+                          color: showLayersPanel ? 'rgb(var(--color-primary))' : 'rgba(var(--color-primary), 0.5)',
+                          borderColor: showLayersPanel ? 'rgba(var(--color-primary), 0.5)' : 'rgba(var(--color-primary), 0.1)',
+                        }}
+                        onMouseEnter={e => { if (!showLayersPanel) { e.currentTarget.style.color = 'rgb(var(--color-primary))'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.4)'; e.currentTarget.style.boxShadow = '0 0 10px rgba(var(--color-primary), 0.16)'; } }}
+                        onMouseLeave={e => { if (!showLayersPanel) { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.5)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.1)'; e.currentTarget.style.boxShadow = 'none'; } }}
+                    >
+                      ⊞ Layers
                     </button>
 
                   </div>
@@ -374,7 +511,7 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
               <BracketCorners size={12} opacity={0.3} />
               <TransformWrapper
                   ref={transformRef}
-                  disabled={isDrawingMode || !!reshapeTargetId}
+                  disabled={isDrawingMode || !!reshapeTargetId || isLabelMode}
                   initialScale={fitScale > 0 ? fitScale : 1}
                   minScale={fitScale > 0 ? fitScale : 0.1}
                   maxScale={Math.max((fitScale > 0 ? fitScale : 1) * 6, 4)}
@@ -455,11 +592,32 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                           creationType={creationType}
                           onFinishDrawing={handleFinishDrawing}
                           inkIntensity={inkIntensity}
+                          isLabelMode={isLabelMode}
+                          textLabels={textLabels || []}
+                          onLabelClick={handleLabelClick}
+                          onEditLabel={handleEditLabel}
+                          onDeleteLabel={handleDeleteLabel}
+                          onMoveLabel={handleMoveLabel}
+                          layers={layers}
                       />
                     </div>
                   </div>
                 </TransformComponent>
               </TransformWrapper>
+
+              {/* Floating layers panel — outside TransformComponent so it doesn't pan with the canvas */}
+              {showLayersPanel && layers && (
+                <FloatingLayersPanel
+                  layers={layers}
+                  activeLayerId={activeLayerId}
+                  onSetActiveLayer={(id) => { if (setActiveLayerId) setActiveLayerId(id); }}
+                  onToggleVisibility={handleToggleLayerVisibility}
+                  onAddLayer={handleAddLayer}
+                  onRenameLayer={handleRenameLayer}
+                  onDeleteLayer={handleDeleteLayer}
+                  onClose={() => setShowLayersPanel(false)}
+                />
+              )}
             </div>
           </div>
 
@@ -504,6 +662,63 @@ const MapComponent = ({ mapData, setMapData, onNavigateToRecord, currentMap, upd
                       Confirm Placement
                     </button>
                     <button onClick={() => setShowLinkModal(false)} className="btn-ghost px-4">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+          )}
+
+          {/* ================= LABEL PLACEMENT MODAL ================= */}
+          {pendingLabelPos && (
+              <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-[1000] p-4">
+                <div
+                    className="modal-panel p-6 max-w-sm w-full space-y-4 animate-fadeIn relative"
+                    style={{ borderRadius: '4px' }}
+                >
+                  <BracketCorners size={10} opacity={0.4} />
+                  <div>
+                    <span className="field-label" style={{ color: 'rgba(var(--color-primary), 0.6)' }}>
+                      {pendingLabelPos.editingId ? 'Edit Map Label' : 'Place Map Label'}
+                    </span>
+                    <p className="font-mono text-[9px] text-gray-600 mt-1">
+                      This label floats on the map canvas. Right-click a label to remove it.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="field-label">Label Text</label>
+                    <input
+                        autoFocus
+                        value={labelText}
+                        onChange={e => setLabelText(e.target.value)}
+                        onKeyDown={e => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') commitLabel();
+                          if (e.key === 'Escape') setPendingLabelPos(null);
+                        }}
+                        placeholder="e.g. AVALON FORD..."
+                        className="input-arcane uppercase"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="field-label">Color</label>
+                    <input
+                        type="color"
+                        value={labelColor}
+                        onChange={e => setLabelColor(e.target.value)}
+                        className="w-7 h-7 bg-transparent border-0 cursor-pointer"
+                    />
+                    <span className="font-mono text-[9px] text-gray-500 uppercase">{labelColor}</span>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                        onClick={commitLabel}
+                        disabled={!labelText.trim()}
+                        className="btn-primary flex-1"
+                    >
+                      {pendingLabelPos.editingId ? 'Update Label' : 'Place Label'}
+                    </button>
+                    <button onClick={() => setPendingLabelPos(null)} className="btn-ghost px-4">
                       Cancel
                     </button>
                   </div>

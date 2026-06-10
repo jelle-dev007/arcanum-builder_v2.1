@@ -16,10 +16,25 @@ const DrawingLayer = ({
   creationType,
   onFinishDrawing,
   inkIntensity = 7,
+  isLabelMode = false,
+  textLabels = [],
+  onLabelClick,
+  onEditLabel,
+  onDeleteLabel,
+  onMoveLabel,
+  layers,
 }) => {
   const [dragInfo, setDragInfo] = useState(null);
   const [hoveredRegionId, setHoveredRegionId] = useState(null);
   const [mousePos, setMousePos] = useState(null);
+
+  const visibleData = layers
+    ? mapData.filter(entry => {
+        if (!entry.layerId) return true;
+        const layer = layers.find(l => l.id === entry.layerId);
+        return !layer || layer.visible;
+      })
+    : mapData;
 
   const getCanvasCoordinates = (e, currentTarget) => {
     const rect = currentTarget.getBoundingClientRect();
@@ -38,6 +53,11 @@ const DrawingLayer = ({
   );
 
   const handleMapClick = (e) => {
+    if (isLabelMode) {
+      const { x, y } = getCanvasCoordinates(e, e.currentTarget);
+      if (onLabelClick) onLabelClick(x, y);
+      return;
+    }
     if (!isDrawingMode) return;
     const { x, y } = getCanvasCoordinates(e, e.currentTarget);
 
@@ -194,7 +214,7 @@ const DrawingLayer = ({
       <rect
         width={CANVAS_W} height={CANVAS_H}
         fill="black" fillOpacity={0}
-        style={{ pointerEvents: isDrawingMode ? 'all' : 'none', cursor: nearFirstNode ? 'pointer' : 'crosshair' }}
+        style={{ pointerEvents: isDrawingMode || isLabelMode ? 'all' : 'none', cursor: isLabelMode ? 'text' : nearFirstNode ? 'pointer' : 'crosshair' }}
         onClick={handleMapClick}
       />
 
@@ -208,7 +228,7 @@ const DrawingLayer = ({
       </g>
 
       {/* 1. TERRITORY REGIONS */}
-      {showRegions && mapData.map((entry) => {
+      {showRegions && visibleData.map((entry) => {
         if (!entry.points || entry.type !== 'region') return null;
         const center = getCenterOfPoints(entry.points);
         const uniqueColor = entry.color || 'rgb(var(--color-primary))';
@@ -253,7 +273,7 @@ const DrawingLayer = ({
       })}
 
       {/* 2. ROADS / MANA LEYLINES */}
-      {showLandmarks && mapData.map((entry) => {
+      {showLandmarks && visibleData.map((entry) => {
         if (!entry.points || entry.type !== 'road') return null;
         const uniqueColor = entry.color || 'rgb(var(--color-primary))';
         const isReshapingThis = reshapeTargetId === entry.id;
@@ -301,7 +321,7 @@ const DrawingLayer = ({
       })}
 
       {/* 3. POINT LANDMARKS */}
-      {showLandmarks && mapData.map((entry) => {
+      {showLandmarks && visibleData.map((entry) => {
         if (!entry.points || entry.type !== 'landmark') return null;
         const [x, y] = entry.points;
         const uniqueColor = entry.color || 'rgb(var(--color-primary))';
@@ -327,6 +347,62 @@ const DrawingLayer = ({
               style={{ animation: 'landmarkCore 4s ease-in-out infinite' }}
             />
           </g>
+        );
+      })}
+
+      {/* 3.5 TEXT LABELS */}
+      {textLabels.map(label => {
+        const handleLabelDragStart = (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const svg = e.currentTarget.ownerSVGElement;
+          const ctm = svg.getScreenCTM();
+          if (!ctm) return;
+          const pt = svg.createSVGPoint();
+          pt.x = e.clientX; pt.y = e.clientY;
+          const svgPos = pt.matrixTransform(ctm.inverse());
+          const offsetX = svgPos.x - label.x;
+          const offsetY = svgPos.y - label.y;
+          const onMove = (me) => {
+            const movePt = svg.createSVGPoint();
+            movePt.x = me.clientX; movePt.y = me.clientY;
+            const pos = movePt.matrixTransform(ctm.inverse());
+            if (onMoveLabel) onMoveLabel(label.id, pos.x - offsetX, pos.y - offsetY);
+          };
+          const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+          };
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        };
+
+        return (
+          <text
+            key={label.id}
+            x={label.x}
+            y={label.y}
+            fill={label.color || 'rgb(var(--color-primary))'}
+            fontSize={label.fontSize || 20}
+            fontFamily="'Cinzel', serif"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            letterSpacing="0.12em"
+            fontWeight="bold"
+            style={{
+              pointerEvents: isDrawingMode ? 'none' : 'auto',
+              cursor: isLabelMode ? 'move' : 'pointer',
+              filter: 'drop-shadow(0 2px 8px rgba(0,0,0,1)) drop-shadow(0 0 4px rgba(0,0,0,0.8))',
+              textTransform: 'uppercase',
+              userSelect: 'none',
+            }}
+            onMouseDown={isLabelMode ? handleLabelDragStart : undefined}
+            onClick={isLabelMode ? (e) => e.stopPropagation() : undefined}
+            onDoubleClick={isLabelMode ? (e) => e.stopPropagation() : (e) => { e.stopPropagation(); if (onEditLabel) onEditLabel(label); }}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteLabel) onDeleteLabel(label.id); }}
+          >
+            {label.text}
+          </text>
         );
       })}
 

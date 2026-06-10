@@ -5,6 +5,9 @@ import RecordHall from './RecordHall';
 import Journal from './Journal';
 import BracketCorners from './BracketCorners';
 import TutorialOverlay from './TutorialOverlay';
+import CommandPalette from './components/CommandPalette';
+import { generateMarkdown } from './utils/exportMarkdown';
+import { generateHtml } from './utils/exportHtml';
 
 const hexToRgbObj = (hex) => {
   if (!hex) return { r: 201, g: 168, b: 76 };
@@ -221,6 +224,9 @@ function App() {
   const [editingPlaneName, setEditingPlaneName] = useState('');
   const [importError, setImportError]     = useState('');
   const [removingIds, setRemovingIds]     = useState(new Set());
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [activeLayerId, setActiveLayerId] = useState('base');
   const importFileRef = useRef(null);
   const colorStateRef = useRef(null);
   const animRafRef    = useRef(null);
@@ -231,6 +237,8 @@ function App() {
 
   const currentMap = maps.find(m => m.id === activeMapId) || maps[0] || { id: 'empty', name: 'VOID', data: [] };
   const mapData = currentMap.data;
+  const textLabels = currentMap.textLabels || [];
+  const mapLayers = currentMap.layers || [{ id: 'base', name: 'BASE', visible: true }];
 
   const setMapData = React.useCallback((updater) => {
     setMaps(prev =>
@@ -241,6 +249,47 @@ function App() {
         )
     );
   }, [activeMapId]);
+
+  const setTextLabels = React.useCallback((updater) => {
+    setMaps(prev =>
+        prev.map(m =>
+            m.id === activeMapId
+                ? { ...m, textLabels: typeof updater === 'function' ? updater(m.textLabels || []) : updater }
+                : m
+        )
+    );
+  }, [activeMapId]);
+
+  const setLayers = React.useCallback((updater) => {
+    setMaps(prev =>
+        prev.map(m => {
+            if (m.id !== activeMapId) return m;
+            const current = m.layers || [{ id: 'base', name: 'BASE', visible: true }];
+            return { ...m, layers: typeof updater === 'function' ? updater(current) : updater };
+        })
+    );
+  }, [activeMapId]);
+
+  // Reset active layer when switching planes
+  useEffect(() => {
+    const layers = currentMap.layers || [{ id: 'base', name: 'BASE', visible: true }];
+    setActiveLayerId(layers[0]?.id || 'base');
+  }, [activeMapId]); // eslint-disable-line
+
+  // Ctrl+K global shortcut + Escape to exit SCRY
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault();
+        setShowCommandPalette(prev => !prev);
+      }
+      if (e.key === 'Escape' && isFocusMode && !showCommandPalette && !showExportModal && !showTutorial) {
+        setIsFocusMode(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isFocusMode, showCommandPalette, showExportModal, showTutorial]);
 
   const updateMapImage = (newUrl) =>
       setMaps(prev => prev.map(m => m.id === activeMapId ? { ...m, imageUrl: newUrl } : m));
@@ -283,29 +332,42 @@ function App() {
     }, 310);
   };
 
-  const handleExport = async () => {
-    const data = JSON.stringify(maps, null, 2);
-    // In Electron, use IPC so we get a native Save-As dialog
+  const downloadFile = async (data, filename, mimeType) => {
     if (typeof window !== 'undefined' && window.require) {
       try {
         const { ipcRenderer } = window.require('electron');
-        await ipcRenderer.invoke('save-file', { data, filename: 'arcanum_archive.json' });
-      } catch {
-        // ipcRenderer unavailable (e.g. running plain browser) — fall through
-        const blob = new Blob([data], { type: 'application/json' });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href = url; a.download = 'arcanum_archive.json';
-        a.click(); URL.revokeObjectURL(url);
-      }
-    } else {
-      // Browser fallback — Blob avoids URL-length limits on large archives
-      const blob = new Blob([data], { type: 'application/json' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href = url; a.download = 'arcanum_archive.json';
-      a.click(); URL.revokeObjectURL(url);
+        await ipcRenderer.invoke('save-file', { data, filename });
+        return;
+      } catch {}
     }
+    const blob = new Blob([data], { type: mimeType });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const handleExport = () => setShowExportModal(true);
+
+  const handleExportJson = async () => {
+    await downloadFile(JSON.stringify(maps, null, 2), 'arcanum_archive.json', 'application/json');
+    setShowExportModal(false);
+  };
+
+  const handleExportMarkdown = async () => {
+    const journalEntries = JSON.parse(localStorage.getItem(`arcanum_journal_${activeMapId}`) || '[]');
+    const content = generateMarkdown(currentMap.name, mapData, journalEntries);
+    const slug = (currentMap.name || 'archive').toLowerCase().replace(/\s+/g, '_');
+    await downloadFile(content, `${slug}_chronicle.md`, 'text/markdown');
+    setShowExportModal(false);
+  };
+
+  const handleExportHtml = async () => {
+    const journalEntries = JSON.parse(localStorage.getItem(`arcanum_journal_${activeMapId}`) || '[]');
+    const content = generateHtml(currentMap.name, mapData, journalEntries);
+    const slug = (currentMap.name || 'archive').toLowerCase().replace(/\s+/g, '_');
+    await downloadFile(content, `${slug}_archive.html`, 'text/html');
+    setShowExportModal(false);
   };
 
   const handleImportFile = (e) => {
@@ -404,6 +466,17 @@ function App() {
       >
         <AstralHaloBackground activeThemeHex={activeTheme.primary || '#c9a84c'} />
 
+        {/* SCRY dim overlay — sits between background and content */}
+        <div
+          className="fixed inset-0 pointer-events-none"
+          style={{
+            zIndex: 5,
+            background: 'rgba(0, 0, 0, 0.9)',
+            opacity: isFocusMode ? 1 : 0,
+            transition: 'opacity 0.5s ease',
+          }}
+        />
+
         {/* ============ ORRERY — fixed concentric rings behind home view ============ */}
         {view === 'home' && (
           <div className="orrery-wrap">
@@ -428,8 +501,13 @@ function App() {
         )}
 
         {/* ============ HEADER ============ */}
-        <header className="relative z-50 header-arcane grain-surface px-8 py-0 grid grid-cols-3 items-stretch transition-colors duration-1000"
-                style={{ minHeight: '74px' }}>
+        <header className="relative z-50 header-arcane grain-surface px-8 py-0 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch transition-colors duration-1000"
+                style={{
+                  minHeight: '74px',
+                  opacity: isFocusMode ? 0 : 1,
+                  pointerEvents: isFocusMode ? 'none' : undefined,
+                  transition: 'opacity 0.4s ease',
+                }}>
 
           {/* Left — Sigil + Wordmark + Theme dots */}
           <div className="flex items-center gap-5 justify-self-start">
@@ -572,12 +650,40 @@ function App() {
         </header>
 
         {/* Golden rule under header */}
-        <div className="relative z-40">
+        <div className="relative z-40" style={{ opacity: isFocusMode ? 0 : 1, transition: 'opacity 0.4s ease' }}>
           <div className="rule-gold" />
         </div>
 
         {/* ============ MAIN VIEWPORT ============ */}
-        <main className="flex-1 w-full h-[calc(100vh-75px)] overflow-hidden relative">
+        <main
+          className="flex-1 w-full overflow-hidden relative"
+          style={{
+            zIndex: 10,
+            height: 'calc(100vh - 75px)',
+          }}
+        >
+          {/* EXIT SCRY button — only visible in focus mode */}
+          {isFocusMode && (
+            <div className="fixed top-4 right-5 z-[100]">
+              <button
+                onClick={() => setIsFocusMode(false)}
+                className="font-mono uppercase tracking-[0.28em] border scry-chamfer"
+                style={{
+                  fontSize: 10,
+                  padding: '8px 18px',
+                  borderRadius: '2px',
+                  borderColor: 'rgba(var(--color-primary), 0.3)',
+                  color: 'rgba(var(--color-primary), 0.55)',
+                  background: 'rgba(0, 0, 0, 0.6)',
+                  transition: 'border-color 0.2s, color 0.2s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.6)'; e.currentTarget.style.color = 'rgb(var(--color-primary))'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.3)'; e.currentTarget.style.color = 'rgba(var(--color-primary), 0.55)'; }}
+              >
+                ◎ EXIT SCRY
+              </button>
+            </div>
+          )}
 
           {/* VIEW: HOME / SANCTUM */}
           {view === 'home' && (
@@ -880,6 +986,12 @@ function App() {
                     updateMapImage={updateMapImage}
                     onNavigateToRecord={handleNavigateToRecord}
                     isFocusMode={isFocusMode}
+                    textLabels={textLabels}
+                    setTextLabels={setTextLabels}
+                    layers={mapLayers}
+                    activeLayerId={activeLayerId}
+                    setLayers={setLayers}
+                    setActiveLayerId={setActiveLayerId}
                 />
               </div>
           )}
@@ -921,6 +1033,82 @@ function App() {
           isFirstLaunch={!localStorage.getItem('arcanum_tutorial_seen')}
         />
       )}
+
+      {/* ============ COMMAND PALETTE ============ */}
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        planes={maps}
+        mapData={mapData}
+        currentMapId={activeMapId}
+        onSelectRecord={(id) => { handleNavigateToRecord(id); }}
+        onSelectPlane={(id) => { setActiveMapId(id); setView('map'); }}
+        onSelectJournal={() => setView('journal')}
+      />
+
+      {/* ============ EXPORT MODAL ============ */}
+      {showExportModal && (
+        <div
+          className="fixed inset-0 z-[4000] flex items-center justify-center p-4"
+          style={{ background: 'rgba(2,2,5,0.88)', backdropFilter: 'blur(10px)' }}
+          onClick={() => setShowExportModal(false)}
+        >
+          <div
+            className="modal-panel p-7 max-w-md w-full space-y-5 animate-fadeIn relative"
+            style={{ borderRadius: '4px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <BracketCorners size={12} opacity={0.4} />
+            <div>
+              <span className="field-label" style={{ color: 'rgba(var(--color-primary), 0.7)' }}>Export Archive</span>
+              <h2 className="font-display text-base tracking-[0.18em] mt-1" style={{ color: 'rgb(var(--color-primary))' }}>
+                Choose Export Format
+              </h2>
+            </div>
+
+            {[
+              {
+                label: 'Archive  (.json)',
+                desc: 'Save everything — all planes, records, and maps — to reload later or back up your work.',
+                fn: handleExportJson,
+              },
+              {
+                label: 'Markdown Book  (.md)',
+                desc: `Export "${currentMap.name}" records and journal as a readable text file. Open in Obsidian, Notion, or any text editor.`,
+                fn: handleExportMarkdown,
+              },
+              {
+                label: 'Webpage  (.html)',
+                desc: `Export "${currentMap.name}" as a self-contained webpage. Open in any browser — great for sharing or reading offline.`,
+                fn: handleExportHtml,
+              },
+            ].map(({ label, desc, fn }) => (
+              <button
+                key={label}
+                onClick={fn}
+                className="w-full text-left p-4 transition-all duration-200 rounded"
+                style={{
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(var(--color-primary), 0.1)',
+                  borderRadius: '3px',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.06)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.3)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.4)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.1)'; }}
+              >
+                <div className="font-display text-[12px] tracking-[0.12em] uppercase mb-1.5" style={{ color: 'rgb(var(--color-primary))' }}>
+                  {label}
+                </div>
+                <div className="font-mono text-[9px] text-gray-600 leading-relaxed">{desc}</div>
+              </button>
+            ))}
+
+            <button onClick={() => setShowExportModal(false)} className="btn-ghost w-full text-[9px] py-2">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       </div>
   );
 }

@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import BracketCorners from './BracketCorners';
 import { preprocessLinks } from './utils/links';
 import RecordGraph from './RecordGraph';
+import { RECORD_TEMPLATES } from './data/recordTemplates';
 
 // ── Export helpers ────────────────────────────────────────────────────────────
 
@@ -340,6 +341,15 @@ const RecordHall = ({
     if (setCurrentPoints) setCurrentPoints([]);
   };
 
+  const handleTemplateSelect = (e) => {
+    const tmpl = RECORD_TEMPLATES.find(t => t.name === e.target.value);
+    if (!tmpl) return;
+    setSubdivision(tmpl.type);
+    setLore(tmpl.lore);
+    setCharacters(tmpl.characters);
+    e.target.value = '';
+  };
+
   // ================= CARD GRID =================
   const renderCardGrid = (records) => (
       <div className="grid md:grid-cols-2 gap-3">
@@ -466,6 +476,8 @@ const RecordHall = ({
                     color: isFormOpen ? '#f87171' : 'rgb(var(--color-primary))',
                     boxShadow: isFormOpen ? 'none' : '0 0 16px rgba(var(--color-primary), 0.06)',
                   }}
+                  onMouseEnter={e => { if (!isFormOpen) { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.09)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.45)'; e.currentTarget.style.boxShadow = '0 0 22px rgba(var(--color-primary), 0.2)'; } }}
+                  onMouseLeave={e => { if (!isFormOpen) { e.currentTarget.style.background = 'rgba(var(--color-primary), 0.04)'; e.currentTarget.style.borderColor = 'rgba(var(--color-primary), 0.18)'; e.currentTarget.style.boxShadow = '0 0 16px rgba(var(--color-primary), 0.06)'; } }}
               >
                 <BracketCorners size={6} opacity={isFormOpen ? 0.3 : 0.5} />
                 {isFormOpen ? "✕ Close Inscription Panel" : "＋ Begin New Chronicle Entry"}
@@ -517,6 +529,31 @@ const RecordHall = ({
                 </div>
 
                 <form onSubmit={handleInscribe} className="space-y-4">
+
+                  {/* Template selector — new entries only */}
+                  {!editingId && (
+                    <div
+                      className="flex items-center justify-between px-4 py-2.5 rounded"
+                      style={{ background: 'rgba(var(--color-primary), 0.04)', border: '1px solid rgba(var(--color-primary), 0.1)' }}
+                    >
+                      <div>
+                        <span className="font-mono text-[10px] text-gray-400 uppercase tracking-wider block">Start from Template</span>
+                        <span className="font-mono text-[8px] text-gray-700 block">Pre-fills lore fields for common archetypes.</span>
+                      </div>
+                      <select
+                        onChange={handleTemplateSelect}
+                        className="input-arcane"
+                        style={{ width: 'auto', fontSize: 9, padding: '4px 8px' }}
+                        defaultValue=""
+                      >
+                        <option value="">— Choose —</option>
+                        {RECORD_TEMPLATES.map(t => (
+                          <option key={t.name} value={t.name}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Folder toggle */}
                   <div
                       className="flex items-center justify-between px-4 py-3 rounded"
@@ -716,6 +753,8 @@ const RecordHall = ({
                               color: activeTypeFilter === type ? 'rgb(var(--color-primary))' : '#4b5563',
                               border: activeTypeFilter === type ? '1px solid rgba(var(--color-primary), 0.25)' : '1px solid transparent',
                             }}
+                            onMouseEnter={e => { if (activeTypeFilter !== type) { e.currentTarget.style.color = 'rgba(var(--color-primary), 0.7)'; e.currentTarget.style.border = '1px solid rgba(var(--color-primary), 0.12)'; } }}
+                            onMouseLeave={e => { if (activeTypeFilter !== type) { e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.border = '1px solid transparent'; } }}
                         >
                           {type}
                         </button>
